@@ -1,40 +1,18 @@
-﻿# --- Python / venv ---
-.venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-.ipynb_checkpoints/
-
-# --- OS / IDE ---
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
-
-# --- Heavy data (DO NOT COMMIT) ---
-SCALPING_DATA*/
-SCALPING_DATA_PARQUET*/
-SCALPING_DATA_RAW*/
-RAW*/
-DATA*/
-*.parquet
-*.csv
-
-# --- Results / logs / audits (DO NOT COMMIT) ---
-results*/
-results_ga*/
-logs*/
-logs_block*/
-FORENSIC_AUDIT_*.zip
-FRANKEN_SYSTEM_AUDIT_*.zip
-FRANKEN_FULL_AUDIT_*.zip
-FRANKEN_*_*.zip
+﻿__pycache__/
 *.log
-run.pid
-
-# --- Temporary / exports ---
-tmp/
-temp/
-exports/
+*.zip
+*.bak
+*.tmp
+*.pid
+.venv/
+venv/
+results*/
+logs*/
+tmp*/
+cache*/
+FRANKEN_*AUDIT*
+*_checkpoint_*
+*_AUDIT_*
+metrics/quantstats/tests/
+ga_engine/deap/doc/
+_sources/
