@@ -1,5 +1,5 @@
 ﻿Set-StrictMode -Off
-$ErrorActionPreference="Stop"
+$ErrorActionPreference = "Stop"
 
 $ROOT = "C:\Users\user\Desktop\Франкинштэйн"
 $REPO = "https://github.com/ketler888-cmyk/FRANKENSTEIN_FACTORY.git"
@@ -9,40 +9,78 @@ function Info($m){ Write-Host "[INFO] $m" -ForegroundColor Cyan }
 function Ok($m){ Write-Host "[OK]   $m" -ForegroundColor Green }
 function Warn($m){ Write-Host "[WARN] $m" -ForegroundColor Yellow }
 function Fail($m){ Write-Host "[FAIL] $m" -ForegroundColor Red; throw $m }
-function Run-Git([string]$args, [string]$label){
-  # Run git safely: do not treat "Everything up-to-date" as error.
-  $out = & git $args 2>&1
-  $txt = ""
-  if($out){ $txt = ($out | Out-String) }
-  if($txt -match "(?im)fatal:" -or $txt -match "(?im)error:" -or $txt -match "(?im)\[rejected\]" ){
-    throw ("git " + $label + " failed:`n" + $txt.Trim())
+
+function Split-GitArgs([string]$s){
+  $s = $s.Trim()
+  if($s.Length -eq 0){ return @() }
+  $m = [regex]::Matches($s, '("([^"\\]|\\.)*"|\S+)')
+  $a = @()
+  foreach($x in $m){
+    $t = $x.Value
+    if($t.StartsWith('"') -and $t.EndsWith('"')){
+      $t = $t.Substring(1, $t.Length-2)
+      $t = $t -replace '\\"','"'
+      $t = $t -replace '\\\\','\'
+    }
+    $a += $t
   }
-  if($txt.Trim().Length -gt 0){ $out | Out-Host }
+  return $a
 }
-function Safe-GitRmCached([string]$path){
-  try { git rm -r --cached --ignore-unmatch -- $path 2>$null | Out-Null } catch { }
+
+function Run-Git([string]$argsLine, [string]$label){
+  $args = Split-GitArgs $argsLine
+  if(!$args -or $args.Count -eq 0){ throw "Run-Git: empty args for $label" }
+
+  # IMPORTANT (PS5.1): git often writes normal messages to stderr -> PowerShell turns into NativeCommandError when EAP=Stop
+  $old = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    $out  = & git @args 2>&1
+    $code = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $old
+  }
+
+  $txt = ""
+  if($out){ $txt = ($out | Out-String).TrimEnd() }
+  if($txt.Length -gt 0){ $out | Out-Host }
+
+  if($code -ne 0){
+    throw ("git " + $label + " failed (exit=" + $code + "):`n" + $txt)
+  }
+  if($txt -match "(?im)fatal:" -or $txt -match "(?im)^error:" -or $txt -match "(?im)\[rejected\]"){
+    throw ("git " + $label + " failed:`n" + $txt)
+  }
+}
+
+function Safe-RmCached([string]$path){
+  $old = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try { & git rm -r --cached --ignore-unmatch -- $path 2>$null | Out-Null } finally { $ErrorActionPreference = $old }
+  $null = $LASTEXITCODE
 }
 
 if(!(Test-Path -LiteralPath $ROOT)){ Fail "ROOT NOT FOUND: $ROOT" }
-Set-Location $ROOT
+Set-Location -LiteralPath $ROOT
 
-if(!(Get-Command git -ErrorAction SilentlyContinue)){ Fail "git not found" }
+$git = Get-Command git -ErrorAction SilentlyContinue
+if(!$git){ Fail "git not found. Install Git for Windows." }
 
-# init if needed
 if(!(Test-Path -LiteralPath ".git")){
   Info "git init..."
-  git init | Out-Null
+  Run-Git 'init' 'init'
 }
 
-# ensure main
 Info "checkout main..."
-git checkout -B main | Out-Null
+Run-Git 'checkout -B main' 'checkout'
 
-# remote
-git remote remove origin 2>$null | Out-Null
-git remote add origin $REPO | Out-Null
+# remote (hard set)
+$old = $ErrorActionPreference; $ErrorActionPreference="Continue"
+try { & git remote remove origin 2>$null | Out-Null } finally { $ErrorActionPreference=$old }
+$old = $ErrorActionPreference; $ErrorActionPreference="Continue"
+try { & git remote add origin $REPO 2>$null | Out-Null } finally { $ErrorActionPreference=$old }
 
-# cleanup stuck git states
+# clean stuck states
 $locks = @(".git\rebase-merge",".git\rebase-apply",".git\MERGE_HEAD",".git\index.lock")
 foreach($l in $locks){
   if(Test-Path -LiteralPath $l){
@@ -50,96 +88,73 @@ foreach($l in $locks){
   }
 }
 
-# HARD gitignore (mirror code/configs only; keep data/cache local)
+# harden .gitignore (no data/cache/logs/results/zips)
 @"
-# ---- DATA / CACHE / OUTPUT (NEVER IN GIT) ----
 SCALPING_DATA*/
 SCALPING_DATA_PARQUET*/
-SCALPING_DATA_RAW*/
 cache/
 logs/
 results*/
-results_ga*/
-factory_top*/
-gene_pool*/
-tmp/
-temp/
-
-# ---- Large files ----
 *.parquet
 *.csv
-*.zip
-*.log
-
-# ---- Python ----
 .venv/
 __pycache__/
-*.pyc
+*.log
+*.zip
+tmp/
+temp/
 "@ | Set-Content -LiteralPath ".gitignore" -Encoding UTF8
 
-# untrack heavy dirs if they were ever added (but keep files on disk)
-Safe-GitRmCached "cache"
-Safe-GitRmCached "SCALPING_DATA"
-Safe-GitRmCached "SCALPING_DATA_PARQUET"
-Safe-GitRmCached "SCALPING_DATA_RAW"
-Safe-GitRmCached "logs"
-Safe-GitRmCached "results"
-Safe-GitRmCached "results_ga"
-Safe-GitRmCached "gene_pool"
+# ensure heavy dirs are NOT tracked (keep locally)
+Safe-RmCached "cache"
+Safe-RmCached "SCALPING_DATA_PARQUET"
+Safe-RmCached "SCALPING_DATA"
+Safe-RmCached "logs"
+Safe-RmCached "results"
 
-# fetch before push (get fresh origin state)
 Info "fetch origin..."
-try { git fetch origin main --prune 2>$null | Out-Null } catch { }
+try { Run-Git 'fetch origin main --prune' 'fetch' } catch { Warn $_.Exception.Message }
 
-# add + commit delta if needed
 Info "git add -A"
-git add -A | Out-Null
+Run-Git 'add -A' 'add'
 
-$porc = ""
-try { $porc = (git status --porcelain) } catch { $porc = "X" }
-
+$old = $ErrorActionPreference; $ErrorActionPreference="Continue"
+try { $porc = & git status --porcelain 2>$null } finally { $ErrorActionPreference=$old }
 if(-not [string]::IsNullOrWhiteSpace($porc)){
   Info "commit: $MSG"
-  git commit -m $MSG | Out-Null
+  Run-Git ('commit -m "' + ($MSG.Replace('"','\"')) + '"') 'commit'
   Ok "commit created"
-} else {
-  Ok "no changes to commit"
+}else{
+  Ok "no changes"
 }
 
-# push delta (retry once if stale)
 Info "push (delta)..."
-$pushOk = $false
 try {
-  git push -u origin main --force-with-lease 2>&1 | Out-Host
-  $pushOk = $true
+  Run-Git 'push -u origin main --force-with-lease' 'push'
+  Ok "push OK"
 } catch {
-  Warn ("push failed: " + $_.Exception.Message)
-  Warn "retry after fetch..."
-  try { git fetch origin main --prune 2>$null | Out-Null } catch { }
-  git push -u origin main --force-with-lease 2>&1 | Out-Host
-  $pushOk = $true
+  Warn $_.Exception.Message
+  Warn "retry: fetch + push"
+  try { Run-Git 'fetch origin main --prune' 'fetch(retry)' } catch { Warn $_.Exception.Message }
+  Run-Git 'push -u origin main --force-with-lease' 'push(retry)'
+  Ok "push OK (retry)"
 }
-
-if(-not $pushOk){ Fail "push failed" }
 
 # verify mirror
-try { git fetch origin main --prune 2>$null | Out-Null } catch { }
-$local  = (git rev-parse HEAD 2>$null).Trim()
-$remote = (git rev-parse origin/main 2>$null).Trim()
+Run-Git 'fetch origin main --prune' 'fetch(final)'
+$local  = (& git rev-parse HEAD).Trim()
+$remote = (& git rev-parse origin/main).Trim()
 
 Info "LOCAL : $local"
 Info "REMOTE: $remote"
 
 if($local -and $remote -and ($local -eq $remote)){
   Ok "MIRROR PERFECT ✅ Local == origin/main"
-} else {
+}else{
   Warn "MIRROR MISMATCH ⚠️"
-  Info "git status -sb:"
-  git status -sb | Out-Host
-  Info "diffstat origin/main..HEAD:"
-  git diff --stat origin/main..HEAD | Out-Host
-  Fail "Mirror mismatch"
+  & git status -sb | Out-Host
+  & git diff --stat origin/main..HEAD | Out-Host
+  throw "Mirror mismatch"
 }
 
 Ok "SYNC DONE 🚀"
-
