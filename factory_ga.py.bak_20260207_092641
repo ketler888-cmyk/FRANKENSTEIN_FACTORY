@@ -1,0 +1,290 @@
+import time, argparse, random, json, sys, logging, math
+from pathlib import Path
+from ga_adapters.runner_bridge import RunnerBridge
+
+ROOT = Path(__file__).resolve().parent
+
+ap = argparse.ArgumentParser()
+ap.add_argument("--pair", required=True)
+ap.add_argument("--population", type=int, default=32)
+ap.add_argument("--generations", type=int, default=0, help="0 = infinite")
+ap.add_argument("--bars", type=int, default=60000)
+ap.add_argument("--timeout_sec", type=int, default=900)
+ap.add_argument("--seed", type=int, default=42)
+ap.add_argument("--notional", type=float, default=50.0)
+
+# цель частоты сделок (на 1m данных)
+ap.add_argument("--tph_min", type=float, default=5.0, help="target trades/hour min")
+ap.add_argument("--tph_max", type=float, default=100.0, help="target trades/hour max")
+
+args = ap.parse_args()
+pair = args.pair
+random.seed(args.seed)
+
+pair_dir = ROOT / "results_ga" / "factory_top" / pair
+pair_dir.mkdir(parents=True, exist_ok=True)
+
+# logging
+log_file = pair_dir / "log.txt"
+logger = logging.getLogger(f"GA-{pair}")
+logger.setLevel(logging.INFO)
+fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", "%Y-%m-%d %H:%M:%S")
+
+# защита от дублей хендлеров при перезапусках
+if not logger.handlers:
+    fh = logging.FileHandler(str(log_file), mode="a", encoding="utf-8")
+    fh.setLevel(logging.INFO); fh.setFormatter(fmt)
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.INFO); ch.setFormatter(fmt)
+    logger.addHandler(fh); logger.addHandler(ch)
+
+logger.info(f"Starting genetic optimization for {pair} (population={args.population}, seed={args.seed}, tph=[{args.tph_min},{args.tph_max}])")
+
+def _pick(d, keys, default=None):
+    if not isinstance(d, dict):
+        return default
+    for k in keys:
+        v = d.get(k, None)
+        if v is not None:
+            return v
+    return default
+
+def extract_metrics(rep: dict, pair: str) -> dict:
+    p = rep.get("pairs", {}).get(pair, {})
+    summ = rep.get("summary", {})
+
+    tm = p.get("test_metrics") or p.get("metrics") or {}
+    trades = _pick(tm, ["trades","total_trades"], None)
+    if trades is None:
+        trades = _pick(summ, ["total_test_trades"], 0)
+
+    net = _pick(tm, ["net_pnl","pnl","net"], None)
+    if net is None:
+        net = _pick(summ, ["total_test_net_pnl"], 0.0)
+
+    fees = _pick(tm, ["fees","total_fees","fees_total"], None)
+    if fees is None:
+        fees = _pick(summ, ["total_test_fees"], 0.0)
+
+    dd = _pick(tm, ["max_drawdown","max_dd","dd"], None)
+    if dd is None:
+        dd = _pick(summ, ["avg_test_drawdown"], 0.0)
+
+    # bars used (prefer explicit test_bars if present, else total_bars)
+    test_bars = int(_pick(p, ["test_bars"], 0) or 0)
+    total_bars = int(_pick(tm, ["total_bars","bars"], 0) or 0)
+    bars = test_bars if test_bars > 0 else (total_bars if total_bars > 0 else int(_pick(summ, ["total_test_bars"], 0) or 0))
+
+    try: trades = int(trades)
+    except: trades = 0
+    try: net = float(net)
+    except: net = 0.0
+    try: fees = float(fees)
+    except: fees = 0.0
+    try: dd = float(dd)
+    except: dd = 0.0
+    try: bars = int(bars)
+    except: bars = 0
+
+    return {"trades": trades, "net_pnl": net, "fees": fees, "max_dd": dd, "bars": bars}
+
+def trades_per_hour(metrics: dict) -> float:
+    # 1m bars => 60 bars/hour
+    bars = max(1, int(metrics.get("bars") or 1))
+    hours = bars / 60.0
+    return float(metrics.get("trades") or 0) / max(1e-9, hours)
+
+def score_fitness(m: dict) -> float:
+    tr = int(m["trades"])
+    if tr <= 0:
+        return -1e9
+
+    tph = trades_per_hour(m)
+
+    # базовая цель: прибыль после комиссий + мягкий штраф за dd
+    base = (m["net_pnl"] - m["fees"]) - 0.25 * abs(m["max_dd"])
+
+    # штраф за выход из диапазона tph [min,max]
+    # мягко, но достаточно жёстко, чтобы ГА искал “молотилку”
+    if tph < args.tph_min:
+        # чем ниже tph, тем сильнее штраф (квадратично)
+        x = (args.tph_min - tph) / max(1e-9, args.tph_min)
+        base -= 50.0 * (x ** 2)
+    elif tph > args.tph_max:
+        x = (tph - args.tph_max) / max(1e-9, args.tph_max)
+        base -= 20.0 * (x ** 2)
+
+    return base
+
+# load previous top-50
+best_records = []
+for file in pair_dir.glob("best_*.json"):
+    try:
+        data = json.loads(file.read_text(encoding="utf-8"))
+    except Exception:
+        continue
+    net_val = None
+    if isinstance(data, dict):
+        if isinstance(data.get("metrics"), dict) and "net_pnl" in data["metrics"]:
+            net_val = float(data["metrics"]["net_pnl"])
+        elif "net_pnl" in data:
+            net_val = float(data["net_pnl"])
+    if net_val is None:
+        continue
+    params = data.get("parameters") or data.get("params") or {}
+    best_records.append({"net": net_val, "params": params, "file": file})
+
+best_records.sort(key=lambda x: x["net"], reverse=True)
+if len(best_records) > 50:
+    for rec in best_records[50:]:
+        try: rec["file"].unlink()
+        except: pass
+    best_records = best_records[:50]
+
+def save_best_candidate(params: dict, metrics: dict):
+    payload = {
+        "pair": pair,
+        "parameters": params,
+        "metrics": {
+            "net_pnl": metrics["net_pnl"],
+            "fees": metrics["fees"],
+            "trades": metrics["trades"],
+            "tph": trades_per_hour(metrics),
+            "max_drawdown": metrics["max_dd"],
+        },
+        "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    ts = int(time.time() * 1000)
+    fp = pair_dir / f"best_{ts}.json"
+    i = 1
+    while fp.exists():
+        fp = pair_dir / f"best_{ts}_{i}.json"
+        i += 1
+    fp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return fp
+
+# init population (seeded + random)
+population = []
+if best_records:
+    use_count = min(len(best_records), max(2, args.population // 2))
+    defaults = {
+        "entry_variant": 0, "rsi_buy": 30.0, "breakout_atr_k": 0.2,
+        "k_tp": 0.5, "k_sl": 1.5, "tp_min_usdt": 0.0, "sl_min_usdt": 0.0,
+        "target_profit_min_usdt": 0.0, "max_hold_bars": 30, "min_atr_multiplier": 1.0,
+        "use_trend_filter": 0, "use_bb_filter": 0, "breakout_lookback": 20
+    }
+    for rec in best_records[:use_count]:
+        params = dict(defaults)
+        params.update(rec["params"] or {})
+        population.append(params)
+
+while len(population) < args.population:
+    population.append({
+        "entry_variant": random.choice([0,1,2,3]),
+        "rsi_buy": random.uniform(10.0, 60.0),
+        "breakout_atr_k": random.uniform(0.01, 2.0),
+        "k_tp": random.uniform(0.0, 3.0),
+        "k_sl": random.uniform(0.0, 3.0),
+        "tp_min_usdt": random.uniform(0.0, 1.0),
+        "sl_min_usdt": random.uniform(0.0, 1.0),
+        "target_profit_min_usdt": random.uniform(0.0, 1.0),
+        "max_hold_bars": random.randint(5, 120),
+        "min_atr_multiplier": random.uniform(0.4, 2.2),
+        "use_trend_filter": random.choice([0,1]),
+        "use_bb_filter": random.choice([0,1]),
+        "breakout_lookback": random.randint(5, 80),
+    })
+
+rb = RunnerBridge(out_dir=str(pair_dir), python_exe=sys.executable)
+
+global_best = float("-inf")
+generation = 0
+max_generations = args.generations if args.generations and args.generations > 0 else float("inf")
+
+try:
+    while generation < max_generations:
+        generation += 1
+        scored = []
+        for indiv in population:
+            cfg = dict(indiv)
+            cfg.update({"max_bars": int(args.bars), "notional_usdt": float(args.notional), "no_optimize": True})
+            try:
+                rep = rb.eval_once(pair, cfg, timeout_sec=args.timeout_sec)
+            except Exception as e:
+                logger.error(f"Backtest error ev={cfg.get('entry_variant')}: {e}")
+                continue
+            mm = extract_metrics(rep, pair)
+            fit = score_fitness(mm)
+            scored.append((fit, indiv, mm))
+
+        if not scored:
+            logger.error("No valid results in generation; stopping.")
+            break
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        best_fit, best_params, best_mm = scored[0]
+        tph = trades_per_hour(best_mm)
+        improved = ""
+        if best_fit > global_best:
+            global_best = best_fit
+            improved = " <<< NEW HIGH FITNESS"
+            fp = save_best_candidate(best_params, best_mm)
+
+            # keep top-50 by net_pnl in folder (simple cleanup)
+            files = sorted(pair_dir.glob("best_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+            if len(files) > 80:
+                for f in files[80:]:
+                    try: f.unlink()
+                    except: pass
+
+        logger.info(
+            f"Gen {generation}: fitness={best_fit:.4f} net={best_mm['net_pnl']:.4f} fees={best_mm['fees']:.4f} "
+            f"trades={best_mm['trades']} tph={tph:.2f} dd={best_mm['max_dd']:.6f} "
+            f"cfg: ev={best_params['entry_variant']} rsi={best_params['rsi_buy']:.1f} atr_k={best_params['breakout_atr_k']:.2f} "
+            f"k_tp={best_params['k_tp']:.2f} k_sl={best_params['k_sl']:.2f} lookback={best_params['breakout_lookback']} "
+            f"hold={best_params['max_hold_bars']} atr_min={best_params['min_atr_multiplier']:.2f} trend={best_params['use_trend_filter']} bb={best_params['use_bb_filter']}"
+            f"{improved}"
+        )
+
+        # next generation: elitism + mutations
+        next_pop = []
+        elites = [scored[i][1] for i in range(min(2, len(scored)))]
+        for e in elites:
+            next_pop.append(e.copy())
+
+        while len(next_pop) < args.population:
+            parent = scored[random.randint(0, min(4, len(scored)-1))][1]
+            child = parent.copy()
+
+            if random.random() < 0.15:
+                child["entry_variant"] = random.choice([0,1,2,3])
+
+            child["rsi_buy"] = max(10.0, min(60.0, child["rsi_buy"] * random.uniform(0.80, 1.20)))
+            child["breakout_atr_k"] = max(0.01, min(2.0, child["breakout_atr_k"] * random.uniform(0.75, 1.25)))
+
+            child["k_tp"] = max(0.0, min(5.0, child["k_tp"] * random.uniform(0.75, 1.25)))
+            child["k_sl"] = max(0.0, min(5.0, child["k_sl"] * random.uniform(0.75, 1.25)))
+
+            child["tp_min_usdt"] = max(0.0, min(5.0, child["tp_min_usdt"] * random.uniform(0.60, 1.40)))
+            child["sl_min_usdt"] = max(0.0, min(5.0, child["sl_min_usdt"] * random.uniform(0.60, 1.40)))
+            child["target_profit_min_usdt"] = max(0.0, min(5.0, child["target_profit_min_usdt"] * random.uniform(0.60, 1.40)))
+
+            # hold + lookback affect trade frequency a lot
+            child["max_hold_bars"] = int(max(2, min(60000, child["max_hold_bars"] + random.randint(-10, 10))))
+            child["breakout_lookback"] = int(max(2, min(200, child["breakout_lookback"] + random.randint(-8, 8))))
+
+            child["min_atr_multiplier"] = max(0.1, min(5.0, child["min_atr_multiplier"] * random.uniform(0.70, 1.30)))
+
+            if random.random() < 0.12:
+                child["use_trend_filter"] = 1 - int(child["use_trend_filter"])
+            if random.random() < 0.12:
+                child["use_bb_filter"] = 1 - int(child["use_bb_filter"])
+
+            next_pop.append(child)
+
+        population = next_pop[:args.population]
+
+except KeyboardInterrupt:
+    logger.info("Ctrl+C -> exit")
+finally:
+    logger.info(f"GA optimization finished for {pair}.")

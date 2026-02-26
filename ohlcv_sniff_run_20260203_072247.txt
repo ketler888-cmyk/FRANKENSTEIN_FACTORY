@@ -1,0 +1,4 @@
+﻿FilesScanned: 203
+Python: C:\Users\user\AppData\Local\Programs\Python\Python311\python.exe
+Sniff:  C:\Users\user\Desktop\Франкинштэйн\_ohlcv_sniff2.py
+

@@ -1,0 +1,24 @@
+{
+  "fitness": {
+    "return_weight": 1.0,
+    "drawdown_weight": 2.0,
+    "winrate_weight": 0.5,
+    "profit_factor_weight": 0.3,
+    "trades_count_weight": 0.02,
+    "min_trades": 10,
+    "min_trades_penalty": 1.0
+  },
+  "ga": {
+    "population": 24,
+    "generations": 10,
+    "elitism": 2,
+    "tournament": 3,
+    "cxpb": 0.8,
+    "mutpb": 0.25,
+    "seed": 42
+  },
+  "backtest": {
+    "train_ratio": 0.7,
+    "starting_equity": 500.0
+  }
+}

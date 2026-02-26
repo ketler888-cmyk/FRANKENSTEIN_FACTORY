@@ -1,0 +1,85 @@
+# ================== factory_ga.py (AUTO-FIXED) ==================
+from __future__ import annotations
+import argparse, random, time, json, os, sys, logging
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
+from ga_adapters.runner_bridge import RunnerBridge
+
+# ---------------- SAFE UNIVERSAL CALL ----------------
+def call_eval_once(bridge, pair: str, cfg: dict, timeout_sec: int):
+    if hasattr(bridge, "run_backtest"):
+        return bridge.run_backtest(pair=pair, cfg=cfg)
+    if hasattr(bridge, "run"):
+        return bridge.run(pair, cfg)
+    if callable(bridge):
+        return bridge(pair, cfg)
+    raise RuntimeError(f"RunnerBridge has no usable method: {dir(bridge)}")
+
+# ---------------- METRICS SAFE ----------------
+def extract_metrics(rep: dict, pair: str):
+    try:
+        p = rep.get("pairs", {}).get(pair, {})
+        m = p.get("test_metrics") or p.get("metrics") or {}
+        return {
+            "trades": int(m.get("trades", 0) or 0),
+            "net_pnl": float(m.get("net_pnl", 0.0) or 0.0),
+            "fees": float(m.get("fees", 0.0) or 0.0),
+            "max_dd": float(m.get("max_dd", 0.0) or 0.0),
+            "bars": int(m.get("bars", 1) or 1),
+        }
+    except Exception:
+        return {"trades":0,"net_pnl":0,"fees":0,"max_dd":999,"bars":1}
+
+def tph(m): return m["trades"] / max(1e-9, m["bars"]/60)
+
+def score(m, tph_min, tph_max):
+    s = (m["net_pnl"] - m["fees"]) - m["max_dd"]*5000
+    t = tph(m)
+    if t < tph_min: s -= (tph_min-t)**2 * 2
+    if t > tph_max: s -= (t-tph_max)**2 * 5
+    return s
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--pair", required=True)
+    ap.add_argument("--population", type=int, default=32)
+    ap.add_argument("--bars", type=int, default=60000)
+    ap.add_argument("--timeout_sec", type=int, default=900)
+    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--notional", type=float, default=50)
+    ap.add_argument("--tph_min", type=float, default=5)
+    ap.add_argument("--tph_max", type=float, default=100)
+    args = ap.parse_args()
+
+    random.seed(args.seed)
+    root = Path(__file__).resolve().parent
+    out = root / "results_ga" / "factory_top" / args.pair
+    out.mkdir(parents=True, exist_ok=True)
+
+    log = out / "log.txt"
+    logging.basicConfig(level=logging.INFO, handlers=[
+        logging.FileHandler(log, encoding="utf-8"),
+        logging.StreamHandler(sys.stdout)
+    ])
+
+    bridge = RunnerBridge()
+    best = None
+    best_s = -1e100
+
+    for i in range(args.population):
+        cfg = {"ATR_MIN":random.random()*0.002+0.0003}
+        try:
+            rep = call_eval_once(bridge, args.pair, cfg, args.timeout_sec)
+            m = extract_metrics(rep, args.pair)
+            s = score(m, args.tph_min, args.tph_max)
+            if s > best_s:
+                best_s = s
+                best = {"cfg":cfg,"metrics":m,"score":s}
+                (out/"best_candidate.json").write_text(json.dumps(best,indent=2))
+        except Exception as e:
+            logging.error(f"EVAL_FAIL: {e}")
+
+    logging.info("GA FINISHED")
+
+if __name__ == "__main__":
+    main()

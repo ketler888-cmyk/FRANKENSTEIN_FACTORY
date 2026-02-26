@@ -1,0 +1,109 @@
+﻿==== ROOT ====
+C:\Users\user\Desktop\Франкинштэйн
+
+==== FOLDER SCAN (top hits) ====
+
+-- C:\Users\user\Desktop\Франкинштэйн\data
+  (no files)
+
+-- C:\Users\user\Desktop\Франкинштэйн\cache
+  .json         5
+  .parquet      5
+  Recent:
+    2026-01-31 03:02:04    55889109  C:\Users\user\Desktop\Франкинштэйн\cache\indicators\SOLUSDT_indicators.parquet
+    2026-01-31 03:02:04        1133  C:\Users\user\Desktop\Франкинштэйн\cache\indicators\SOLUSDT_meta.json
+    2026-01-31 03:02:04    56444653  C:\Users\user\Desktop\Франкинштэйн\cache\indicators\ETHUSDT_indicators.parquet
+    2026-01-31 03:02:04        1133  C:\Users\user\Desktop\Франкинштэйн\cache\indicators\ETHUSDT_meta.json
+    2026-01-31 03:02:03        1133  C:\Users\user\Desktop\Франкинштэйн\cache\indicators\BTCUSDT_meta.json
+    2026-01-31 03:02:03    56667362  C:\Users\user\Desktop\Франкинштэйн\cache\indicators\BTCUSDT_indicators.parquet
+    2026-01-31 03:02:03    56187975  C:\Users\user\Desktop\Франкинштэйн\cache\indicators\BNBUSDT_indicators.parquet
+    2026-01-31 03:02:03        1133  C:\Users\user\Desktop\Франкинштэйн\cache\indicators\BNBUSDT_meta.json
+    2026-01-31 03:02:02    56887926  C:\Users\user\Desktop\Франкинштэйн\cache\indicators\ADAUSDT_indicators.parquet
+    2026-01-31 03:02:02        1133  C:\Users\user\Desktop\Франкинштэйн\cache\indicators\ADAUSDT_meta.json
+  Sample by patterns:
+    [*.parquet] C:\Users\user\Desktop\Франкинштэйн\cache\indicators\ADAUSDT_indicators.parquet
+    [*.parquet] C:\Users\user\Desktop\Франкинштэйн\cache\indicators\BNBUSDT_indicators.parquet
+    [*.json] C:\Users\user\Desktop\Франкинштэйн\cache\indicators\ADAUSDT_meta.json
+    [*.json] C:\Users\user\Desktop\Франкинштэйн\cache\indicators\BNBUSDT_meta.json
+
+-- C:\Users\user\Desktop\Франкинштэйн\results
+  .csv         12
+  .json         5
+  Recent:
+    2026-02-02 23:20:58         459  C:\Users\user\Desktop\Франкинштэйн\results\heartbeat_global.json
+    2026-02-02 23:20:58         434  C:\Users\user\Desktop\Франкинштэйн\results\heartbeat_BTCUSDT.json
+    2026-02-02 23:00:50      372492  C:\Users\user\Desktop\Франкинштэйн\results\equity_BTCUSDT_test.csv
+    2026-02-02 23:00:50       62926  C:\Users\user\Desktop\Франкинштэйн\results\trades_BTCUSDT_test.csv
+    2026-01-31 01:54:21        5015  C:\Users\user\Desktop\Франкинштэйн\results\indicator_cache_report.json
+    2026-01-31 01:03:08        4563  C:\Users\user\Desktop\Франкинштэйн\results\backtest_report.json
+    2026-01-31 01:03:08    23698259  C:\Users\user\Desktop\Франкинштэйн\results\equity_SOLUSDT.csv
+    2026-01-31 01:03:06        4268  C:\Users\user\Desktop\Франкинштэйн\results\trades_SOLUSDT.csv
+    2026-01-31 01:01:43    24244723  C:\Users\user\Desktop\Франкинштэйн\results\equity_ETHUSDT.csv
+    2026-01-31 01:01:40        4883  C:\Users\user\Desktop\Франкинштэйн\results\trades_ETHUSDT.csv
+  Sample by patterns:
+    [*.csv] C:\Users\user\Desktop\Франкинштэйн\results\equity_ADAUSDT.csv
+    [*.csv] C:\Users\user\Desktop\Франкинштэйн\results\equity_BNBUSDT.csv
+    [*.json] C:\Users\user\Desktop\Франкинштэйн\results\backtest_report.json
+    [*.json] C:\Users\user\Desktop\Франкинштэйн\results\data_report.json
+
+-- C:\Users\user\Desktop\Франкинштэйн\results_ga
+  .json        49
+  .log         37
+  .txt         24
+  .py           3
+  Recent:
+    2026-02-02 23:00:50        3255  C:\Users\user\Desktop\Франкинштэйн\results_ga\run_20260202_134602.json
+    2026-02-02 09:53:37        3234  C:\Users\user\Desktop\Франкинштэйн\results_ga\_tmp_report_NOT50_breakout_L20_k025_lowfees.json
+    2026-02-02 09:53:28        3232  C:\Users\user\Desktop\Франкинштэйн\results_ga\_tmp_report_NOT50_breakout_L10_k0.json
+    2026-02-02 09:53:19        3235  C:\Users\user\Desktop\Франкинштэйн\results_ga\_tmp_report_NOT50_breakout_L20_k025.json
+    2026-02-02 09:42:15        3266  C:\Users\user\Desktop\Франкинштэйн\results_ga\_tmp_report_breakout_L20_k025_notional8.json
+    2026-02-02 09:36:20        3265  C:\Users\user\Desktop\Франкинштэйн\results_ga\_tmp_report_breakout_L10_k0_notional8.json
+    2026-02-02 09:35:48        3265  C:\Users\user\Desktop\Франкинштэйн\results_ga\_tmp_report_notional8_makerexit_lowfees.json
+    2026-02-02 09:35:10        3279  C:\Users\user\Desktop\Франкинштэйн\results_ga\_tmp_report_notional8_rsi45.json
+    2026-02-02 09:28:16        3235  C:\Users\user\Desktop\Франкинштэйн\results_ga\_tmp_report_breakout_C1.json
+    2026-02-02 09:27:47        3243  C:\Users\user\Desktop\Франкинштэйн\results_ga\_tmp_report_density_B1_maker.json
+  Sample by patterns:
+    [*.json] C:\Users\user\Desktop\Франкинштэйн\results_ga\run_20260202_134602.json
+    [*.json] C:\Users\user\Desktop\Франкинштэйн\results_ga\_tmp_report_breakout_C1.json
+
+-- C:\Users\user\Desktop\Франкинштэйн
+  .py         755
+  .json       116
+  .md         113
+  .txt         51
+  .rst         43
+  .log         43
+  .png         39
+  .csv         28
+  .yml         26
+  .feather     26
+  .j2          22
+  .jpg         10
+                8
+  .gitkeep      8
+  .ps1          7
+  Recent:
+    2026-02-03 06:56:57        5358  C:\Users\user\Desktop\Франкинштэйн\data_map_20260203_065657.txt
+    2026-02-03 06:54:35        1376  C:\Users\user\Desktop\Франкинштэйн\_LAUNCH_FAST.ps1
+    2026-02-03 06:51:39           5  C:\Users\user\Desktop\Франкинштэйн\stderr.log
+    2026-02-03 06:51:39           5  C:\Users\user\Desktop\Франкинштэйн\stdout.log
+    2026-02-02 23:20:58         459  C:\Users\user\Desktop\Франкинштэйн\results\heartbeat_global.json
+    2026-02-02 23:20:58         434  C:\Users\user\Desktop\Франкинштэйн\results\heartbeat_BTCUSDT.json
+    2026-02-02 23:17:09        6080  C:\Users\user\Desktop\Франкинштэйн\watchdog.log
+    2026-02-02 23:00:50        3255  C:\Users\user\Desktop\Франкинштэйн\results_ga\run_20260202_134602.json
+    2026-02-02 23:00:50      372492  C:\Users\user\Desktop\Франкинштэйн\results\equity_BTCUSDT_test.csv
+    2026-02-02 23:00:50       62926  C:\Users\user\Desktop\Франкинштэйн\results\trades_BTCUSDT_test.csv
+  Sample by patterns:
+    [*.csv] C:\Users\user\Desktop\Франкинштэйн\ga_engine\deap\examples\ga\heart_scale.csv
+    [*.csv] C:\Users\user\Desktop\Франкинштэйн\ga_engine\deap\examples\gp\spambase.csv
+    [*.parquet] C:\Users\user\Desktop\Франкинштэйн\cache\indicators\ADAUSDT_indicators.parquet
+    [*.parquet] C:\Users\user\Desktop\Франкинштэйн\cache\indicators\BNBUSDT_indicators.parquet
+    [*.feather] C:\Users\user\Desktop\Франкинштэйн\_sources\freqtrade\tests\testdata\ADA_BTC-5m.feather
+    [*.feather] C:\Users\user\Desktop\Франкинштэйн\_sources\freqtrade\tests\testdata\BTC_USDT-5m.feather
+    [*.json] C:\Users\user\Desktop\Франкинштэйн\_signal_scout.json
+    [*.json] C:\Users\user\Desktop\Франкинштэйн\cache\indicators\ADAUSDT_meta.json
+    [*.pickle] C:\Users\user\Desktop\Франкинштэйн\_sources\freqtrade\tests\testdata\hyperopt_results_SampleStrategy.pickle
+    [*.zip] C:\Users\user\Desktop\Франкинштэйн\_sources\freqtrade\tests\testdata\binance\binance_public_data\futures-APEUSDT-aggTrades-2024-10-18.zip
+    [*.zip] C:\Users\user\Desktop\Франкинштэйн\_sources\freqtrade\tests\testdata\binance\binance_public_data\futures-um-klines-BTCUSDT-1h-2024-10-28.zip
+
+OK: C:\Users\user\Desktop\Франкинштэйн\data_map_20260203_065657.txt

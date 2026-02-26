@@ -1,0 +1,220 @@
+﻿Set-StrictMode -Off
+$ErrorActionPreference = 'Stop'
+
+param(
+  [string]$Root,
+  [string[]]$Pairs,
+  [int]$TopN = 100,
+  [int]$TopK = 3,
+  [int]$KeepErrPerPair = 10
+)
+
+function EnsureDir([string]$p){ if(!(Test-Path -LiteralPath $p)){ New-Item -ItemType Directory -Path $p | Out-Null } }
+function ReadJson([string]$p){ try { Get-Content -LiteralPath $p -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $null } }
+
+$results = Join-Path $Root 'results_ga'
+$indexDir = Join-Path $results '_index'
+EnsureDir $results
+EnsureDir $indexDir
+
+# Collect run dirs containing backtest_report.json
+$runDirs = Get-ChildItem -LiteralPath $results -Directory -ErrorAction SilentlyContinue | Where-Object {
+  Test-Path -LiteralPath (Join-Path $_.FullName 'backtest_report.json')
+}
+
+# Parse each report and normalize into per-pair rows
+$rows = @()
+foreach($rd in $runDirs){
+  $rp = Join-Path $rd.FullName 'backtest_report.json'
+  $j = ReadJson $rp
+  if($null -eq $j){ continue }
+
+  foreach($pair in $Pairs){
+    if(-not ($j.pairs.PSObject.Properties.Name -contains $pair)){ continue }
+
+    $pp = $j.pairs.$pair
+    $st = $pp.status
+    if([string]::IsNullOrWhiteSpace($st)){ $st = 'unknown' }
+
+    # metrics
+    $tm = $pp.test_metrics
+    if($null -eq $tm){ continue }
+
+    $bars = 0
+    try { $bars = [double]$tm.total_bars } catch { $bars = 0 }
+    if($bars -le 0){ $bars = 0 }
+
+    # avg/day and avg/month from bars (1m)
+    $days = 0
+    if($bars -gt 0){ $days = ($bars / 1440.0) }
+    $pnlDay = 0
+    $pnlMonth = 0
+    if($days -gt 0){
+      $pnlDay = ([double]$tm.net_pnl) / $days
+      $pnlMonth = ([double]$tm.net_pnl) / ($days / 30.0)
+    }
+
+    # fitness: primary net_pnl, penalize drawdown and fees (stable, simple)
+    $net = [double]$tm.net_pnl
+    $dd  = 0
+    try { $dd = [double]$tm.max_drawdown } catch { $dd = 0 }
+    $fees = 0
+    try { $fees = [double]$tm.total_fees } catch { $fees = 0 }
+    $fitness = ($net) - (200.0 * $dd) - (0.25 * $fees)
+
+    $rows += [PSCustomObject]@{
+      pair = $pair
+      status = $st
+      run_dir = $rd.FullName
+      ts = $pp.timestamp
+      net_pnl = $net
+      fees = $fees
+      trades = [int]$tm.total_trades
+      win_rate = [double]$tm.win_rate
+      win = [int]$tm.winning_trades
+      loss = [int]$tm.losing_trades
+      avg_win = [double]$tm.avg_win
+      avg_loss = [double]$tm.avg_loss
+      max_dd = $dd
+      pnl_day = $pnlDay
+      pnl_month = $pnlMonth
+      fitness = $fitness
+    }
+  }
+}
+
+# --- Cleanup errors (keep last N per pair) ---
+foreach($pair in $Pairs){
+  $errs = $rows | Where-Object { $_.pair -eq $pair -and $_.status -eq 'error' } | Sort-Object ts -Descending
+  if($errs.Count -gt $KeepErrPerPair){
+    $toDel = $errs | Select-Object -Skip $KeepErrPerPair
+    foreach($e in $toDel){
+      try { Remove-Item -LiteralPath $e.run_dir -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+    }
+  }
+}
+
+# Rebuild rows after deletion
+$runDirs2 = Get-ChildItem -LiteralPath $results -Directory -ErrorAction SilentlyContinue | Where-Object {
+  Test-Path -LiteralPath (Join-Path $_.FullName 'backtest_report.json')
+}
+
+$rows2 = @()
+foreach($rd in $runDirs2){
+  $rp = Join-Path $rd.FullName 'backtest_report.json'
+  $j = ReadJson $rp
+  if($null -eq $j){ continue }
+  foreach($pair in $Pairs){
+    if(-not ($j.pairs.PSObject.Properties.Name -contains $pair)){ continue }
+    $pp = $j.pairs.$pair
+    if($pp.status -eq 'error'){ continue } # errors not ranked
+    $tm = $pp.test_metrics
+    if($null -eq $tm){ continue }
+    $bars = 0; try { $bars = [double]$tm.total_bars } catch { $bars = 0 }
+    $days = 0; if($bars -gt 0){ $days = ($bars / 1440.0) }
+    $pnlDay = 0; $pnlMonth = 0
+    if($days -gt 0){
+      $pnlDay = ([double]$tm.net_pnl) / $days
+      $pnlMonth = ([double]$tm.net_pnl) / ($days / 30.0)
+    }
+    $net = [double]$tm.net_pnl
+    $dd  = 0; try { $dd = [double]$tm.max_drawdown } catch { $dd = 0 }
+    $fees = 0; try { $fees = [double]$tm.total_fees } catch { $fees = 0 }
+    $fitness = ($net) - (200.0 * $dd) - (0.25 * $fees)
+
+    $rows2 += [PSCustomObject]@{
+      pair = $pair
+      run_dir = $rd.FullName
+      ts = $pp.timestamp
+      net_pnl = $net
+      fees = $fees
+      trades = [int]$tm.total_trades
+      win_rate = [double]$tm.win_rate
+      win = [int]$tm.winning_trades
+      loss = [int]$tm.losing_trades
+      avg_win = [double]$tm.avg_win
+      avg_loss = [double]$tm.avg_loss
+      max_dd = $dd
+      pnl_day = $pnlDay
+      pnl_month = $pnlMonth
+      fitness = $fitness
+    }
+  }
+}
+
+# --- Keep only TopN per pair (delete the rest) ---
+foreach($pair in $Pairs){
+  $ok = $rows2 | Where-Object { $_.pair -eq $pair } | Sort-Object fitness -Descending
+  if($ok.Count -gt $TopN){
+    $drop = $ok | Select-Object -Skip $TopN
+    foreach($d in $drop){
+      try { Remove-Item -LiteralPath $d.run_dir -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+    }
+  }
+}
+
+# --- Final index after pruning ---
+$finalRunDirs = Get-ChildItem -LiteralPath $results -Directory -ErrorAction SilentlyContinue | Where-Object {
+  Test-Path -LiteralPath (Join-Path $_.FullName 'backtest_report.json')
+}
+
+$final = @()
+foreach($rd in $finalRunDirs){
+  $rp = Join-Path $rd.FullName 'backtest_report.json'
+  $j = ReadJson $rp
+  if($null -eq $j){ continue }
+  foreach($pair in $Pairs){
+    if(-not ($j.pairs.PSObject.Properties.Name -contains $pair)){ continue }
+    $pp = $j.pairs.$pair
+    if($pp.status -eq 'error'){ continue }
+    $tm = $pp.test_metrics
+    if($null -eq $tm){ continue }
+
+    $bars = 0; try { $bars = [double]$tm.total_bars } catch { $bars = 0 }
+    $days = 0; if($bars -gt 0){ $days = ($bars / 1440.0) }
+    $pnlDay = 0; $pnlMonth = 0
+    if($days -gt 0){
+      $pnlDay = ([double]$tm.net_pnl) / $days
+      $pnlMonth = ([double]$tm.net_pnl) / ($days / 30.0)
+    }
+
+    $net = [double]$tm.net_pnl
+    $dd  = 0; try { $dd = [double]$tm.max_drawdown } catch { $dd = 0 }
+    $fees = 0; try { $fees = [double]$tm.total_fees } catch { $fees = 0 }
+    $fitness = ($net) - (200.0 * $dd) - (0.25 * $fees)
+
+    $final += [PSCustomObject]@{
+      pair = $pair
+      ts = $pp.timestamp
+      run_dir = $rd.FullName
+      fitness = $fitness
+      net_pnl = $net
+      pnl_day = $pnlDay
+      pnl_month = $pnlMonth
+      trades = [int]$tm.total_trades
+      win_rate = [double]$tm.win_rate
+      win = [int]$tm.winning_trades
+      loss = [int]$tm.losing_trades
+      avg_win = [double]$tm.avg_win
+      avg_loss = [double]$tm.avg_loss
+      fees = $fees
+      max_dd = $dd
+    }
+  }
+}
+
+# Write per-pair top100 + top3
+foreach($pair in $Pairs){
+  $list = $final | Where-Object { $_.pair -eq $pair } | Sort-Object fitness -Descending
+  $top100 = $list | Select-Object -First $TopN
+  $top3 = $list | Select-Object -First $TopK
+
+  ($top100 | ConvertTo-Json -Depth 4) | Out-File -Encoding UTF8 (Join-Path $indexDir ("top100_{0}.json" -f $pair))
+  ($top3  | ConvertTo-Json -Depth 4) | Out-File -Encoding UTF8 (Join-Path $indexDir ("top3_{0}.json" -f $pair))
+}
+
+# Global best_of_day.json (by fitness, today only if timestamps exist; else by all-time)
+$bestAll = $final | Sort-Object fitness -Descending | Select-Object -First 50
+($bestAll | ConvertTo-Json -Depth 4) | Out-File -Encoding UTF8 (Join-Path $indexDir "best_all.json")
+
+'OK' | Out-File -Encoding ASCII (Join-Path $indexDir "index_status.txt")

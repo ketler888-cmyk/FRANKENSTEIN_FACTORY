@@ -1,0 +1,73 @@
+import os, sys, time, random, subprocess
+from pathlib import Path
+from datetime import datetime
+def _autopairs(root=None, take=5):
+    try:
+        from pathlib import Path
+        root = Path(root) if root else Path(__file__).resolve().parent
+        parq = root / "SCALPING_DATA_PARQUET"
+        raw  = root / "SCALPING_DATA_RAW"
+        csvd = root / "SCALPING_DATA"
+        pairs = set()
+        if parq.exists():
+            for p in parq.glob("*_1m.parquet"):
+                pairs.add(p.stem.replace("_1m",""))
+        if raw.exists():
+            for p in raw.glob("*_1m.csv"):
+                pairs.add(p.stem.replace("_1m",""))
+        if (not pairs) and csvd.exists():
+            for p in csvd.glob("*_1m.csv"):
+                pairs.add(p.stem.replace("_1m",""))
+        pairs = sorted([x for x in pairs if x])
+        return pairs[:take] if take else pairs
+    except Exception:
+        return []
+ROOT = Path(__file__).resolve().parent
+PAIRS = _autopairs(root=None, take=5)
+# Small slice per pair, then rotate (so factory is 'alive' and never stuck on one pair)
+POPULATION   = 32
+GENERATIONS  = 5          # per rotation chunk
+BARS         = 60000      # ~year-ish depending on dataset
+TIMEOUT_SEC  = 900
+NOTIONAL     = 50.0
+
+SLEEP_BETWEEN_PAIRS = 2
+SLEEP_ON_ERROR = 8
+
+def py_exe():
+    v = ROOT / ".venv" / "Scripts" / "python.exe"
+    return str(v) if v.exists() else sys.executable
+
+def run_chunk(pair: str):
+    cmd = [
+        py_exe(), str(ROOT / "factory_ga.py"),
+        "--pair", pair,
+        "--population", str(POPULATION),
+        "--generations", str(GENERATIONS),
+        "--bars", str(BARS),
+        "--timeout_sec", str(TIMEOUT_SEC),
+        "--notional", str(NOTIONAL),
+    ]
+    # stays in same console, no extra windows
+    return subprocess.call(cmd, cwd=str(ROOT))
+
+def main():
+    print(f"[MASTER] start {datetime.now().isoformat(timespec='seconds')}")
+    print(f"[MASTER] ROOT={ROOT}")
+    while True:
+        random.shuffle(PAIRS)
+        for pair in PAIRS:
+            try:
+                print(f"\\n[MASTER] >>> rotate pair={pair}")
+                rc = run_chunk(pair)
+                print(f"[MASTER] <<< pair={pair} rc={rc}")
+                time.sleep(SLEEP_BETWEEN_PAIRS)
+            except KeyboardInterrupt:
+                print("[MASTER] Ctrl+C -> exit")
+                return
+            except Exception as e:
+                print(f"[MASTER] error pair={pair}: {e}")
+                time.sleep(SLEEP_ON_ERROR)
+
+if __name__ == "__main__":
+    main()

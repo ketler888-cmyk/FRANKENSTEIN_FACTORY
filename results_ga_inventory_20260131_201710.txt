@@ -1,0 +1,23 @@
+﻿=== results_ga folders (latest first) ===
+
+Name                      FullName                                                                LastWriteTime       
+----                      --------                                                                -------------       
+run_20260131_200824_10156 C:\Users\user\Desktop\Франкинштэйн\results_ga\run_20260131_200824_10156 1/31/2026 8:08:24 PM
+run_20260131_193824_10156 C:\Users\user\Desktop\Франкинштэйн\results_ga\run_20260131_193824_10156 1/31/2026 7:38:24 PM
+run_20260131_190824_10156 C:\Users\user\Desktop\Франкинштэйн\results_ga\run_20260131_190824_10156 1/31/2026 7:08:24 PM
+run_20260131_183824_10156 C:\Users\user\Desktop\Франкинштэйн\results_ga\run_20260131_183824_10156 1/31/2026 6:38:24 PM
+run_20260131_180823_10156 C:\Users\user\Desktop\Франкинштэйн\results_ga\run_20260131_180823_10156 1/31/2026 6:08:23 PM
+run_20260131_173823_10156 C:\Users\user\Desktop\Франкинштэйн\results_ga\run_20260131_173823_10156 1/31/2026 5:38:23 PM
+
+
+
+
+=== files inside latest folder ===
+Latest = C:\Users\user\Desktop\Франкинштэйн\results_ga\run_20260131_200824_10156
+
+Name        Length LastWriteTime       
+----        ------ -------------       
+params.json    172 1/31/2026 8:08:24 PM
+
+
+

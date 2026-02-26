@@ -1,0 +1,183 @@
+import subprocess
+
+# --- PROGRESS_JSONL_V1 ---
+from ga_adapters.progress import append_jsonl as _append_jsonl
+from ga_adapters.contract import normalize_pair as _norm_pair
+
+def _progress(event, **kw):
+    try:
+        rec = {"event": str(event)}
+        for k,v in kw.items():
+            rec[str(k)] = v
+        _append_jsonl("results/progress.jsonl", rec)
+    except Exception:
+        pass
+# --- PROGRESS_JSONL_V1 ---
+
+# --- UTF-8 stdout/stderr (Windows console safety) ---
+import sys
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
+except Exception:
+    pass
+# ---------------------------------------------------
+
+CREATE_NO_WINDOW = 0x08000000  # Windows: hide console window
+import os, sys, time, random, subprocess
+import json
+
+from pathlib import Path
+from datetime import datetime
+def normalize_pair(p: str) -> str:
+    if p is None:
+        return p
+    p = str(p).strip().upper()
+    # BTC/USDT -> BTCUSDT, BTC-USDT -> BTCUSDT, BTC_USDT -> BTCUSDT
+    p = p.replace("/", "").replace("-", "").replace("_", "")
+    return p
+
+def load_factory_config(root: Path):
+    cfg = root / "configs" / "factory_config.json"
+    if not cfg.exists():
+        return {}
+    try:
+        return json.loads(cfg.read_text(encoding="utf-8"))
+    except Exception:
+        try:
+            return json.loads(cfg.read_text(encoding="utf-8-sig"))
+        except Exception:
+            return {}
+
+def _autopairs(root=None, take=5):    # factory_config override
+    try:
+        if isinstance(FC, dict) and FC.get("pairs"):
+            pairs = [normalize_pair(x) for x in FC.get("pairs") if str(x).strip()]
+            pairs = sorted(list(dict.fromkeys(pairs)))
+            return pairs[:take] if take else pairs
+    except Exception:
+        pass
+
+    try:
+        from pathlib import Path
+        root = Path(root) if root else Path(__file__).resolve().parent
+        parq = root / "SCALPING_DATA_PARQUET"
+        raw  = root / "SCALPING_DATA_RAW"
+        csvd = root / "SCALPING_DATA"
+        pairs = set()
+        if parq.exists():
+            for p in parq.glob("*_1m.parquet"):
+                pairs.add(p.stem.replace("_1m",""))
+        if raw.exists():
+            for p in raw.glob("*_1m.csv"):
+                pairs.add(p.stem.replace("_1m",""))
+        if (not pairs) and csvd.exists():
+            for p in csvd.glob("*_1m.csv"):
+                pairs.add(p.stem.replace("_1m",""))
+        pairs = sorted([x for x in pairs if x])
+        return pairs[:take] if take else pairs
+    except Exception:
+        return []
+ROOT = Path(__file__).resolve().parent
+
+import re
+import subprocess
+from typing import List, Set
+
+# === FRANKEN_HELPER_START ===
+import re
+import subprocess
+from typing import List, Set
+
+def _ga_supported_args(py_exe: str, root_dir: str) -> Set[str]:
+    # returns option tokens like {'--pair','--population',...}
+    try:
+        p = subprocess.run(
+            [py_exe, "factory_ga.py", "-h"],
+            capture_output=True, text=True, cwd=root_dir
+        )
+        help_txt = (p.stdout or "") + "\n" + (p.stderr or "")
+    except Exception:
+        return set()
+    return set(re.findall(r'(?m)(--[a-zA-Z0-9_\-]+)', help_txt))
+
+def _filter_ga_args(args: List[str], supported: Set[str]) -> List[str]:
+    if not supported:
+        return args
+    out: List[str] = []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if isinstance(a, str) and a.startswith("--"):
+            if a in supported:
+                out.append(a)
+                if i + 1 < len(args) and (not str(args[i+1]).startswith("--")):
+                    out.append(args[i+1])
+                    i += 2
+                    continue
+                i += 1
+                continue
+            else:
+                # drop unknown flag and its value (if any)
+                if i + 1 < len(args) and (not str(args[i+1]).startswith("--")):
+                    i += 2
+                else:
+                    i += 1
+                continue
+        else:
+            out.append(a)
+            i += 1
+    return out
+# === FRANKEN_HELPER_END ===
+
+FC = load_factory_config(ROOT)
+PAIRS = _autopairs(root=None, take=5)
+# Small slice per pair, then rotate (so factory is 'alive' and never stuck on one pair)
+POPULATION = int((FC.get("ga", {}) or {}).get("population", 48))
+GENERATIONS = int((FC.get("ga", {}) or {}).get("generations", 18))          # per rotation chunk
+BARS = int(((FC.get("history", {}) or {}).get("max_bars", 0)) or 0)      # ~year-ish depending on dataset
+TIMEOUT_SEC = int((FC.get("ga", {}) or {}).get("timeout_sec", 1800))
+NOTIONAL = float((FC.get("ga", {}) or {}).get("notional", 8))
+
+SLEEP_BETWEEN_PAIRS = 2
+SLEEP_ON_ERROR = 8
+
+def py_exe():
+    v = ROOT / ".venv" / "Scripts" / "python.exe"
+    return str(v) if v.exists() else sys.executable
+
+def run_chunk(pair: str):
+    pair = normalize_pair(pair)
+    cmd = [
+        py_exe(), str(ROOT / "factory_ga.py"),
+        "--pair", pair,
+        "--population", str(POPULATION),
+        "--generations", str(GENERATIONS),
+        "--bars", str(BARS),
+        "--timeout_sec", str(TIMEOUT_SEC),
+        "--notional", str(NOTIONAL),
+    ]
+    # stays in same console, no extra windows
+    return subprocess.call(cmd, cwd=str(ROOT))
+
+def main():
+    print(f"[MASTER] start {datetime.now().isoformat(timespec='seconds')}")
+    print(f"[MASTER] ROOT={ROOT}")
+    while True:
+        random.shuffle(PAIRS)
+        for pair in PAIRS:
+            try:
+                print(f"\\n[MASTER] >>> rotate pair={pair}")
+                rc = run_chunk(pair)
+                print(f"[MASTER] <<< pair={pair} rc={rc}")
+                time.sleep(SLEEP_BETWEEN_PAIRS)
+            except KeyboardInterrupt:
+                print("[MASTER] Ctrl+C -> exit")
+                return
+            except Exception as e:
+                print(f"[MASTER] error pair={pair}: {e}")
+                time.sleep(SLEEP_ON_ERROR)
+
+if __name__ == "__main__":
+    _progress('master_start', root=str(r'C:\Users\user\Desktop\ÃƒÂÃ‚Â¤Ãƒâ€˜Ã¢â€šÂ¬ÃƒÂÃ‚Â°ÃƒÂÃ‚Â½ÃƒÂÃ‚ÂºÃƒÂÃ‚Â¸ÃƒÂÃ‚Â½Ãƒâ€˜Ã‹â€ Ãƒâ€˜Ã¢â‚¬Å¡Ãƒâ€˜Ã‚ÂÃƒÂÃ‚Â¹ÃƒÂÃ‚Â½'))  # PROGRESS_MAIN_START_V1
+    main()

@@ -1,0 +1,2 @@
+Set sh = CreateObject("Shell.Application")
+sh.ShellExecute "powershell.exe", "-NoExit -ExecutionPolicy Bypass -File ""C:\Users\user\Desktop\A529~1\FRANKE~3.PS1""", "C:\Users\user\Desktop\A529~1", "runas", 1

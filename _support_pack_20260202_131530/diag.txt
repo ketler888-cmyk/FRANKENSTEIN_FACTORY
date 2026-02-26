@@ -1,0 +1,189 @@
+﻿TIME:    2026-02-02 13:15:30
+PROJECT: C:\Users\user\Desktop\Франкинштэйн
+RUNNER:  C:\Users\user\Desktop\Франкинштэйн\backtest_runner_v3.py
+
+PYTHON (where.exe python):
+C:\Users\user\AppData\Local\Programs\Python\Python311\python.exe
+C:\Users\user\AppData\Local\Microsoft\WindowsApps\python.exe
+
+
+PYTHON (version):
+Python 3.11.9
+
+
+RUN PID from run.pid: 15892
+RUN PROCESS snapshot:
+
+
+Id           : 15892
+ProcessName  : python
+CPU          : 342.8125
+StartTime    : 2/2/2026 1:09:45 PM
+Path         : C:\Users\user\AppData\Local\Programs\Python\Python311\python.exe
+WorkingSet64 : 230830080
+
+
+
+
+
+ALL python.exe processes that mention backtest_runner_v3.py:
+
+
+ProcessId   : 15892
+CommandLine : "C:\Users\user\AppData\Local\Programs\Python\Python311\python.exe" backtest_runner_v3.py 
+              --pairs BTCUSDT --starting_equity 100 --train_ratio 0.7 --max_bars 50000 --min_trades 50 
+              --notional_usdt 50 --entry_variant 1 --breakout_lookback 15 --breakout_atr_k 0.1 --output 
+              C:\Users\user\Desktop\Франкинштэйн\results_ga\run_20260202_130944.json 
+
+
+
+
+
+TAIL stderr.log (last 200):
+2026-02-02 13:09:45,851 - INFO - Found 1 file(s) to load in: C:\Users\user\Desktop\\u0424\u0440\u0430\u043d\u043a\u0438\u043d\u0448\u0442\u044d\u0439\u043d\SCALPING_DATA
+2026-02-02 13:09:45,851 - INFO - Loading BTCUSDT_1m.csv
+2026-02-02 13:09:46,826 - INFO - Loaded BTCUSDT: 525596 rows
+
+
+TAIL stdout.log (last 200):
+
+
+TAIL watchdog.log (last 200):
+
+[11:23:36] WATCHDOG started for RUN_ID=16304
+[11:23:37] STALL detected (0s) -> restart
+[11:23:37] RESTART requested
+[11:23:38] RESTARTED new RUN_ID=
+[11:23:53] Process missing -> restart
+[11:23:53] RESTART requested
+[11:23:54] RESTARTED new RUN_ID=
+[11:24:09] Process missing -> restart
+[11:24:09] RESTART requested
+[11:24:11] RESTARTED new RUN_ID=
+[11:24:26] Process missing -> restart
+[11:24:26] RESTART requested
+[11:24:27] RESTARTED new RUN_ID=
+[11:24:42] Process missing -> restart
+[11:24:42] RESTART requested
+[11:24:43] RESTARTED new RUN_ID=
+[11:24:58] Process missing -> restart
+[11:24:58] RESTART requested
+[11:25:00] RESTARTED new RUN_ID=
+[11:25:15] Process missing -> restart
+[11:25:15] RESTART requested
+[11:25:16] RESTARTED new RUN_ID=
+[11:25:31] Process missing -> restart
+[11:25:31] RESTART requested
+[11:25:33] RESTARTED new RUN_ID=
+[11:25:48] Process missing -> restart
+[11:25:48] RESTART requested
+[11:25:49] RESTARTED new RUN_ID=
+[11:26:04] Process missing -> restart
+[11:26:04] RESTART requested
+[11:26:06] RESTARTED new RUN_ID=
+[11:26:21] Process missing -> restart
+[11:26:21] RESTART requested
+[11:26:23] RESTARTED new RUN_ID=
+[11:26:38] Process missing -> restart
+[11:26:38] RESTART requested
+[11:26:40] RESTARTED new RUN_ID=
+[11:26:56] Process missing -> restart
+[11:26:56] RESTART requested
+[11:26:58] RESTARTED new RUN_ID=
+2026-02-02 11:29:07 [WD] START PID=
+2026-02-02 11:29:07 [WD] Process missing -> restart
+2026-02-02 11:29:07 [WD] START PID=
+2026-02-02 11:29:22 [WD] Process missing -> restart
+2026-02-02 11:29:22 [WD] START PID=
+2026-02-02 11:29:37 [WD] Process missing -> restart
+2026-02-02 11:29:37 [WD] START PID=
+2026-02-02 11:29:52 [WD] Process missing -> restart
+2026-02-02 11:29:52 [WD] START PID=
+2026-02-02 11:30:07 [WD] Process missing -> restart
+2026-02-02 11:30:07 [WD] START PID=
+2026-02-02 11:30:22 [WD] Process missing -> restart
+2026-02-02 11:30:22 [WD] START PID=
+2026-02-02 11:30:37 [WD] Process missing -> restart
+2026-02-02 11:30:37 [WD] START PID=
+2026-02-02 11:30:52 [WD] Process missing -> restart
+2026-02-02 11:30:52 [WD] START PID=
+2026-02-02 11:31:07 [WD] Process missing -> restart
+2026-02-02 11:31:07 [WD] START PID=
+2026-02-02 11:31:22 [WD] Process missing -> restart
+2026-02-02 11:31:22 [WD] START PID=
+2026-02-02 11:31:37 [WD] Process missing -> restart
+2026-02-02 11:31:37 [WD] START PID=
+2026-02-02 11:31:52 [WD] Process missing -> restart
+2026-02-02 11:31:52 [WD] START PID=
+2026-02-02 11:32:07 [WD] Process missing -> restart
+2026-02-02 11:32:07 [WD] START PID=
+2026-02-02 11:32:22 [WD] Process missing -> restart
+2026-02-02 11:32:22 [WD] START PID=
+2026-02-02 11:32:37 [WD] Process missing -> restart
+2026-02-02 11:32:37 [WD] START PID=
+2026-02-02 11:32:52 [WD] Process missing -> restart
+2026-02-02 11:32:52 [WD] START PID=
+2026-02-02 11:33:07 [WD] Process missing -> restart
+2026-02-02 11:33:07 [WD] START PID=
+2026-02-02 11:33:22 [WD] Process missing -> restart
+2026-02-02 11:33:22 [WD] START PID=
+2026-02-02 11:33:37 [WD] Process missing -> restart
+2026-02-02 11:33:37 [WD] START PID=
+2026-02-02 11:33:52 [WD] Process missing -> restart
+2026-02-02 11:33:52 [WD] START PID=
+2026-02-02 11:34:07 [WD] Process missing -> restart
+2026-02-02 11:34:07 [WD] START PID=
+2026-02-02 11:34:14 [WD] START PID=
+2026-02-02 11:34:14 [WD] WATCH PID=
+2026-02-02 11:34:14 [WD] Process missing -> restart
+2026-02-02 11:34:14 [WD] START PID=
+2026-02-02 11:34:29 [WD] Process missing -> restart
+2026-02-02 11:34:29 [WD] START PID=
+2026-02-02 11:34:44 [WD] Process missing -> restart
+2026-02-02 11:34:44 [WD] START PID=
+2026-02-02 11:34:59 [WD] Process missing -> restart
+2026-02-02 11:34:59 [WD] START PID=
+2026-02-02 11:35:14 [WD] Process missing -> restart
+2026-02-02 11:35:14 [WD] START PID=
+2026-02-02 11:35:29 [WD] Process missing -> restart
+2026-02-02 11:35:29 [WD] START PID=
+2026-02-02 11:35:44 [WD] Process missing -> restart
+2026-02-02 11:35:44 [WD] START PID=
+2026-02-02 11:35:59 [WD] Process missing -> restart
+2026-02-02 11:35:59 [WD] START PID=
+2026-02-02 11:36:14 [WD] Process missing -> restart
+2026-02-02 11:36:14 [WD] START PID=
+2026-02-02 11:36:29 [WD] Process missing -> restart
+2026-02-02 11:36:29 [WD] START PID=
+2026-02-02 11:36:44 [WD] Process missing -> restart
+2026-02-02 11:36:44 [WD] START PID=
+2026-02-02 11:36:59 [WD] Process missing -> restart
+2026-02-02 11:36:59 [WD] START PID=
+2026-02-02 11:37:14 [WD] Process missing -> restart
+2026-02-02 11:37:14 [WD] START PID=
+2026-02-02 11:37:29 [WD] Process missing -> restart
+2026-02-02 11:37:29 [WD] START PID=
+2026-02-02 11:37:44 [WD] Process missing -> restart
+2026-02-02 11:37:44 [WD] START PID=
+2026-02-02 11:37:59 [WD] Process missing -> restart
+2026-02-02 11:37:59 [WD] START PID=
+2026-02-02 11:38:14 [WD] Process missing -> restart
+2026-02-02 11:38:14 [WD] START PID=
+2026-02-02 11:38:29 [WD] Process missing -> restart
+2026-02-02 11:38:29 [WD] START PID=
+2026-02-02 11:38:44 [WD] Process missing -> restart
+2026-02-02 11:38:44 [WD] START PID=
+2026-02-02 11:38:59 [WD] Process missing -> restart
+2026-02-02 11:38:59 [WD] START PID=
+2026-02-02 11:39:14 [WD] Process missing -> restart
+2026-02-02 11:39:14 [WD] START PID=
+2026-02-02 11:39:29 [WD] Process missing -> restart
+2026-02-02 11:39:29 [WD] START PID=
+2026-02-02 11:39:44 [WD] Process missing -> restart
+2026-02-02 11:39:44 [WD] START PID=
+2026-02-02 11:39:53 [WD] WATCH PID=15268
+2026-02-02 11:39:53 [WD] Process missing -> restart
+2026-02-02 11:39:54 [WD] START PID=14960
+2026-02-02 13:09:47 [WD] WATCH PID=15892
+
+

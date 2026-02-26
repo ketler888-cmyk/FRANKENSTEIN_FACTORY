@@ -1,0 +1,117 @@
+param(
+  [Parameter(Mandatory=$true)][string]$Root,
+  [Parameter(Mandatory=$true)][string]$PairsCsv
+)
+
+Set-StrictMode -Off
+$ErrorActionPreference = "Stop"
+
+function EnsureDir([string]$p){ if(!(Test-Path -LiteralPath $p)){ New-Item -ItemType Directory -Path $p | Out-Null } }
+function WriteCrash([string]$title, [string]$details){
+  $desk = [Environment]::GetFolderPath("Desktop")
+  $stamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
+  $fp = Join-Path $desk ("FRANKEN_BLOCK3_CRASH_{0}.txt" -f $stamp)
+  [System.IO.File]::WriteAllText($fp, ("TITLE: " + $title + "`r`nTIME: " + (Get-Date) + "`r`nROOT: " + $Root + "`r`nPAIRS: " + $PairsCsv + "`r`n`r`n" + $details), (New-Object System.Text.UTF8Encoding($false)))
+  return $fp
+}
+function ResolvePython([string]$Root){
+  $cand = Join-Path $Root ".venv\Scripts\python.exe"
+  if(Test-Path -LiteralPath $cand){ return $cand }
+  $cand2 = Join-Path $Root "venv\Scripts\python.exe"
+  if(Test-Path -LiteralPath $cand2){ return $cand2 }
+  try { $cmd = Get-Command python.exe -ErrorAction SilentlyContinue; if($cmd -and $cmd.Source){ return $cmd.Source } } catch {}
+  try { $cmd2 = Get-Command py.exe -ErrorAction SilentlyContinue; if($cmd2 -and $cmd2.Source){ return $cmd2.Source } } catch {}
+  return $null
+}
+
+try {
+  if(!(Test-Path -LiteralPath $Root)){ throw "Root folder not found: $Root" }
+
+  # load env speedups (non-fatal)
+  try {
+    $envPs1 = Join-Path (Join-Path $Root "tools") "franken_env.ps1"
+    if(Test-Path -LiteralPath $envPs1){ . $envPs1 }
+  } catch {}
+
+  $factory = Join-Path $Root "factory_ga.py"
+  if(!(Test-Path -LiteralPath $factory)){ throw "factory_ga.py not found: $factory" }
+
+  $Pairs = $PairsCsv.Split(",") | ForEach-Object { $_.Trim().ToUpper() } | Where-Object { $_ -match "^[A-Z0-9]+USDT$" }
+  if($Pairs.Count -ne 5){ throw "Expected 5 pairs, got: $($Pairs -join ',')" }
+
+  # Ensure python side can see only these pairs
+  $env:FR_PAIRS = ($Pairs -join ",")
+
+  $py = ResolvePython $Root
+  if([string]::IsNullOrWhiteSpace($py)){ throw "Python not found (.venv or system python/py)." }
+  $usePyLauncher = $py.ToLower().EndsWith("\py.exe")
+
+  $logs = Join-Path $Root "logs_block3"
+  EnsureDir $logs
+
+  # stop old python workers (only python/py)
+  Get-Process python,py -ErrorAction SilentlyContinue | ForEach-Object { try { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } catch {} }
+
+  $procs = @()
+
+  foreach($p in $Pairs){
+    $stamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
+    $out = Join-Path $logs ("{0}_{1}.out.log" -f $p,$stamp)
+    $err = Join-Path $logs ("{0}_{1}.err.log" -f $p,$stamp)
+
+    if($usePyLauncher){
+      $args = @("-3","-u",$factory,"--pair",$p)
+      $proc = Start-Process -FilePath $py -WorkingDirectory $Root -ArgumentList $args -RedirectStandardOutput $out -RedirectStandardError $err -PassThru -WindowStyle Hidden
+    } else {
+      $args = @("-u",$factory,"--pair",$p)
+      $proc = Start-Process -FilePath $py -WorkingDirectory $Root -ArgumentList $args -RedirectStandardOutput $out -RedirectStandardError $err -PassThru -WindowStyle Hidden
+    }
+
+    $procs += [PSCustomObject]@{ Pair=$p; Proc=$proc; Out=$out; Err=$err }
+    Write-Host ("[START] {0} pid={1}" -f $p,$proc.Id)
+  }
+
+  Write-Host ""
+  Write-Host ("[RUNNING] Logs: {0}" -f $logs)
+  Write-Host ("Pairs: " + ($Pairs -join ","))
+  Write-Host "Ctrl+C to stop."
+
+  $cancel = [ConsoleCancelEventHandler]{
+    param($sender,$e)
+    $e.Cancel = $true
+    foreach($x in $procs){
+      try { if($x.Proc -and -not $x.Proc.HasExited){ Stop-Process -Id $x.Proc.Id -Force -ErrorAction SilentlyContinue } } catch {}
+    }
+    Write-Host "[STOPPED]"
+    exit 0
+  }
+  [Console]::add_CancelKeyPress($cancel)
+
+  while($true){
+    foreach($x in $procs){
+      if($x.Proc -and $x.Proc.HasExited){
+        $code = $x.Proc.ExitCode
+        if($code -ne 0){
+          $details = "PAIR: $($x.Pair)`r`nEXIT: $code`r`nOUT: $($x.Out)`r`nERR: $($x.Err)`r`n`r`n--- STDERR (tail) ---`r`n"
+          try {
+            if(Test-Path -LiteralPath $x.Err){
+              $tail = Get-Content -LiteralPath $x.Err -Tail 200 -ErrorAction SilentlyContinue | Out-String
+              $details += $tail
+            }
+          } catch {}
+          $fp = WriteCrash "Python worker crashed" $details
+          Write-Host ("[CRASH] " + $x.Pair + " exit=" + $code + " -> " + $fp)
+          $x.Proc = $null
+        }
+      }
+    }
+    Start-Sleep -Seconds 2
+  }
+
+} catch {
+  $fp = WriteCrash "FRANKEN_RUN_BLOCK3 failed" ($_ | Out-String)
+  Write-Host ("CRASH REPORT -> " + $fp)
+  try { Write-Host $_.Exception.Message } catch {}
+  try { Write-Host "Press Enter to close..." ; [void](Read-Host) } catch {}
+  exit 1
+}

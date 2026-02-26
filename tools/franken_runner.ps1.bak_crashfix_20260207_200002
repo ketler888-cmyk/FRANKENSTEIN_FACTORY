@@ -1,0 +1,87 @@
+Set-StrictMode -Off
+$ErrorActionPreference = "Stop"
+
+$DESKTOP = [Environment]::GetFolderPath("Desktop")
+$STAMP   = (Get-Date).ToString("yyyyMMdd_HHmmss")
+$CRASH   = Join-Path $DESKTOP ("FRANKEN_CRASH_{0}.txt" -f $STAMP)
+
+function Write-Crash($Title, $Err){
+    try{
+        @(
+            "=== FRANKEN SYSTEM CRASH ==="
+            "TIME: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+            "TITLE: $Title"
+            ""
+            "MESSAGE:"
+            $Err.Exception.Message
+            ""
+            "SCRIPT:"
+            $Err.InvocationInfo.ScriptName
+            ""
+            "LINE:"
+            $Err.InvocationInfo.ScriptLineNumber
+            ""
+            "STACK TRACE:"
+            $Err.ScriptStackTrace
+        ) | Out-File -LiteralPath $CRASH -Encoding UTF8 -Force
+    } catch{}
+}
+
+try {
+    param(
+        [string]$Root,
+        [string]$PairsCsv,
+        [int]$TopN = 100,
+        [int]$TopK = 3,
+        [int]$KeepErrPerPair = 10,
+        [int]$MonRefreshSec = 5
+    )
+
+    if(!(Test-Path $Root)){ throw "ROOT not found: $Root" }
+
+    $tools   = Join-Path $Root "tools"
+    $indexer = Join-Path $tools "fr_index_results.ps1"
+    $monitor = Join-Path $tools "fr_monitor_top3.ps1"
+    $factory = Join-Path $Root "factory_ga.py"
+
+    if(!(Get-Command python.exe -ErrorAction SilentlyContinue)){
+        throw "python.exe not found in PATH"
+    }
+    if(!(Test-Path $factory)){
+        throw "factory_ga.py not found: $factory"
+    }
+
+    $Pairs = $PairsCsv.Split(",") | ForEach-Object { $_.Trim().ToUpper() }
+    if($Pairs.Count -ne 5){
+        throw "Expected exactly 5 pairs, got: $($Pairs -join ',')"
+    }
+
+    $env:FR_PAIRS = $PairsCsv
+
+    # --- start monitor ---
+    Start-Process powershell.exe -ArgumentList @(
+        "-NoProfile","-ExecutionPolicy","Bypass",
+        "-File",$monitor,"-Root",$Root,"-Pairs",$PairsCsv,"-RefreshSec",$MonRefreshSec
+    ) -WindowStyle Normal | Out-Null
+
+    # --- start index job ---
+    Start-Job -ScriptBlock {
+        param($Root,$Pairs,$TopN,$TopK,$KeepErr,$Indexer)
+        while($true){
+            try { & $Indexer -Root $Root -Pairs $Pairs -TopN $TopN -TopK $TopK -KeepErrPerPair $KeepErr | Out-Null }
+            catch {}
+            Start-Sleep 10
+        }
+    } -ArgumentList $Root,$Pairs,$TopN,$TopK,$KeepErrPerPair,$indexer | Out-Null
+
+    # --- start GA ---
+    foreach($p in $Pairs){
+        Start-Process python.exe -ArgumentList @($factory,"--pair",$p) -WindowStyle Hidden | Out-Null
+    }
+
+    while($true){ Start-Sleep 2 }
+
+} catch {
+    Write-Crash "RUNNER_FATAL_ERROR" $_
+    exit 1
+}

@@ -1,0 +1,39 @@
+{
+    "pairs":  [
+                  "XRPUSDT",
+                  "DOGEUSDT",
+                  "ADAUSDT",
+                  "TRXUSDT",
+                  "LINKUSDT"
+              ],
+    "history":  {
+                    "timeframe":  "1m",
+                    "max_bars":  0
+                },
+    "ga":  {
+               "population":  48,
+               "generations":  18,
+               "timeout_sec":  1800,
+               "notional":  8
+           },
+    "storage":  {
+                    "keep_latest_runs_per_pair":  6,
+                    "keep_top_configs_per_pair":  50,
+                    "max_eval_dirs_per_pair":  120
+                },
+    "tp_sl_corridor":  {
+                           "tp_pct_min":  0.30,
+                           "tp_pct_max":  1.20,
+                           "sl_pct_min":  0.35,
+                           "sl_pct_max":  2.50,
+                           "min_rr":  0.50,
+                           "max_rr":  4.00
+                       },
+    "pair_normalization":  true,
+    "watchdog_policy":  {
+                            "stale_heartbeat_seconds":  180,
+                            "kill_after_stale_seconds":  420,
+                            "restart_cooldown_seconds":  120,
+                            "max_restarts_per_hour":  6
+                        }
+}

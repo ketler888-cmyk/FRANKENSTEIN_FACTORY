@@ -1,0 +1,55 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+fitness_log.txt
+
+generation_*.txt
+
+backtesting_commands.sh
+
+ga.json
+mini.json
+
+logs/*
+
+checkpoints/*
+!checkpoints/.gitkeep
+
+genetic_algorithm_results*
+
+user_data/data/*
+!user_data/data/.gitkeep
+
+
+user_data/backtest_results/*
+!user_data/backtest_results/.gitkeep
+
+scripts/outputs/*
+!scripts/outputs/.gitkeep
+
+
+user_data/strategies/*
+!user_data/strategies/.gitkeep
+
+results/*
+!results/.gitkeep
+
+bestgenerations/*
+!bestgenerations/.gitkeep
+
+candidates/*
+!candidates/.gitkeep
+
+user_data/temp_config_*.json
+
+user_data/config.json
+user_data/config*
+
+
+strategies/*              # 忽略 strategies 目录及其内容
+!strategies/.gitkeep      # 保留 .gitkeep 文件
+
+daily_results/*/gen*/config.json  # 忽略所有 daily_results 目录下的 genera* 子目录中的 config.json 文件

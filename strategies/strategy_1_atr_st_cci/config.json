@@ -1,0 +1,6 @@
+﻿{
+  "atr_period": 14,
+  "supertrend_mult": 1.5,
+  "cci_period": 20,
+  "cci_entry_threshold": 100
+}

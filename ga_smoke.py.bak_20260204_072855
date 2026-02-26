@@ -1,0 +1,144 @@
+import os
+import json
+import time
+import argparse
+import random
+from pathlib import Path
+
+# project root
+ROOT = Path(__file__).resolve().parent
+import sys
+sys.path.insert(0, str(ROOT))
+
+from ga_adapters.runner_bridge import RunnerBridge
+
+def pick(d, keys, default=0.0):
+    for k in keys:
+        if isinstance(d, dict) and k in d and d[k] is not None:
+            return d[k]
+    return default
+
+def normalize_metrics(report: dict):
+    """
+    Accepts various report formats and extracts:
+      trades, net, fees, dd
+    """
+    # common patterns
+    summary = report.get("summary", report)
+
+    trades = pick(summary, ["trades", "trades_total", "n_trades", "total_trades"], 0)
+    net    = pick(summary, ["net", "net_pnl", "net_total", "profit", "pnl"], 0.0)
+    fees   = pick(summary, ["fees", "fees_total", "commission", "commissions"], 0.0)
+    dd     = pick(summary, ["dd", "max_dd", "max_drawdown", "drawdown"], 0.0)
+
+    try: trades = int(trades)
+    except Exception: trades = 0
+    try: net = float(net)
+    except Exception: net = 0.0
+    try: fees = float(fees)
+    except Exception: fees = 0.0
+    try: dd = float(dd)
+    except Exception: dd = 0.0
+
+    return trades, net, fees, dd
+
+def score_fn(trades, net, fees, dd):
+    """
+    Conservative score:
+      - must trade (otherwise score=0)
+      - maximize (net - fees)
+      - penalize drawdown moderately
+    """
+    if trades <= 0:
+        return 0.0
+    return max(0.0, (net - fees) - 0.25 * abs(dd))
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--pair", default="SOLUSDT")
+    ap.add_argument("--population", type=int, default=6)
+    ap.add_argument("--generations", type=int, default=2)
+    ap.add_argument("--notional", type=float, default=50.0)
+    ap.add_argument("--timeout_sec", type=int, default=600)
+    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--bars", type=int, default=60000, help="max bars for debug-smoke (set 0 for full)")
+    args = ap.parse_args()
+
+    random.seed(args.seed)
+
+    out = ROOT / "results_ga" / ("ga_smoke_" + time.strftime("%Y%m%d_%H%M%S"))
+    out.mkdir(parents=True, exist_ok=True)
+
+    print(f"[GA] out={out}")
+    print(f"[GA] pair={args.pair} pop={args.population} gens={args.generations} bars={args.bars} timeout={args.timeout_sec}s")
+
+    rb = RunnerBridge(out_dir=str(out), python_exe=sys.executable)
+
+    def eval_one(tp, sl):
+        params = {
+            "tp_pct": float(tp),
+            "sl_pct": float(sl),
+            "notional": float(args.notional),
+            "seed": int(args.seed),
+            "max_bars": int(args.bars) if int(args.bars) > 0 else None,
+            "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        rep = rb.eval_once(args.pair, params, timeout_sec=args.timeout_sec)
+        trades, net, fees, dd = normalize_metrics(rep)
+        sc = score_fn(trades, net, fees, dd)
+        meta = {"trades": trades, "net": net, "fees": fees, "dd": dd}
+        return sc, meta, params
+
+    # init population
+    pop = []
+    for _ in range(args.population):
+        tp = random.uniform(0.0025, 0.012)   # 0.25% .. 1.2%
+        sl = random.uniform(0.0010, 0.008)   # 0.10% .. 0.8%
+        pop.append((tp, sl))
+
+    best = None
+
+    for gen in range(args.generations):
+        scored = []
+        for tp, sl in pop:
+            sc, meta, par = eval_one(tp, sl)
+            scored.append((sc, meta, par))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        best = scored[0]
+        sc, meta, par = best
+        print(f"[GA] gen={gen} best_score={sc:.6f} tp={par['tp_pct']:.6f} sl={par['sl_pct']:.6f} trades={meta['trades']} net={meta['net']:.6f} fees={meta['fees']:.6f} dd={meta['dd']:.6f}")
+
+        # evolve: keep top 2, mutate others
+        elites = [scored[i][2] for i in range(min(2, len(scored)))]
+        new_pop = []
+        for e in elites:
+            new_pop.append((e["tp_pct"], e["sl_pct"]))
+        while len(new_pop) < args.population:
+            # mutate best
+            base = scored[random.randint(0, min(3, len(scored)-1))][2]
+            tp = float(base["tp_pct"]) * random.uniform(0.85, 1.15)
+            sl = float(base["sl_pct"]) * random.uniform(0.85, 1.15)
+            tp = max(0.0008, min(tp, 0.03))
+            sl = max(0.0005, min(sl, 0.03))
+            new_pop.append((tp, sl))
+        pop = new_pop
+
+    if best is not None:
+        sc, meta, par = best
+        payload = {
+            "best_score": sc,
+            "best_params": par,
+            "best_metrics": meta,
+            "pair": args.pair,
+            "population": args.population,
+            "generations": args.generations,
+            "notional": args.notional,
+            "seed": args.seed,
+            "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        (out / "best.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"[GA] saved: {(out / 'best.json').resolve()}")
+
+if __name__ == "__main__":
+    main()
