@@ -9,16 +9,7 @@ function Info($m){ Write-Host "[INFO] $m" -ForegroundColor Cyan }
 function Ok($m){ Write-Host "[OK]   $m" -ForegroundColor Green }
 function Warn($m){ Write-Host "[WARN] $m" -ForegroundColor Yellow }
 function Fail($m){ Write-Host "[FAIL] $m" -ForegroundColor Red; throw $m }
-function Run-Git([string]$args, [string]$label){
-  # Run git safely: do not treat "Everything up-to-date" as error.
-  $out = & git $args 2>&1
-  $txt = ""
-  if($out){ $txt = ($out | Out-String) }
-  if($txt -match "(?im)fatal:" -or $txt -match "(?im)error:" -or $txt -match "(?im)\[rejected\]" ){
-    throw ("git " + $label + " failed:`n" + $txt.Trim())
-  }
-  if($txt.Trim().Length -gt 0){ $out | Out-Host }
-}
+
 function Safe-GitRmCached([string]$path){
   try { git rm -r --cached --ignore-unmatch -- $path 2>$null | Out-Null } catch { }
 }
@@ -142,4 +133,3 @@ if($local -and $remote -and ($local -eq $remote)){
 }
 
 Ok "SYNC DONE 🚀"
-
