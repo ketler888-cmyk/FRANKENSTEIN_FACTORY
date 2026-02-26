@@ -1,16 +1,23 @@
-﻿# === HEAVY DATA (DO NOT TRACK) ===
+﻿# ---- DATA / CACHE / OUTPUT (NEVER IN GIT) ----
 SCALPING_DATA*/
 SCALPING_DATA_PARQUET*/
+SCALPING_DATA_RAW*/
 cache/
 logs/
 results*/
-*.parquet
-*.csv
-
-# === SYSTEM ===
-.venv/
-__pycache__/
-*.log
-*.zip
+results_ga*/
+factory_top*/
+gene_pool*/
 tmp/
 temp/
+
+# ---- Large files ----
+*.parquet
+*.csv
+*.zip
+*.log
+
+# ---- Python ----
+.venv/
+__pycache__/
+*.pyc
