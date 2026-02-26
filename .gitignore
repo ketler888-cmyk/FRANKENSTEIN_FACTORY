@@ -1,18 +1,16 @@
-﻿__pycache__/
+﻿# === HEAVY DATA (DO NOT TRACK) ===
+SCALPING_DATA*/
+SCALPING_DATA_PARQUET*/
+cache/
+logs/
+results*/
+*.parquet
+*.csv
+
+# === SYSTEM ===
+.venv/
+__pycache__/
 *.log
 *.zip
-*.bak
-*.tmp
-*.pid
-.venv/
-venv/
-results*/
-logs*/
-tmp*/
-cache*/
-FRANKEN_*AUDIT*
-*_checkpoint_*
-*_AUDIT_*
-metrics/quantstats/tests/
-ga_engine/deap/doc/
-_sources/
+tmp/
+temp/
