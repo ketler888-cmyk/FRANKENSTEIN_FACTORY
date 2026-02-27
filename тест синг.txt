@@ -1,0 +1,91 @@
+FRANKEN STARTUP AUDIT
+TIME: 2026-02-07 20:29:54
+USER: user
+OS  : Microsoft Windows NT 10.0.26200.0
+------------------------------------------------------------
+[1] DESKTOP CONTENTS
+- BlueWhale_Report_20260118_220703 (Directory)
+- GA_DIAG (Directory)
+- L2 (Directory)
+- PandoraDiag_FIX_20251125_134937 (Directory)
+- Scanner (Directory)
+- ta-lib-python-master (Directory)
+- Yamaha xs 400 (Directory)
+- ????????????_?????_??? (Directory)
+- ?????? (Directory)
+- ????? ??? (Directory)
+- ????????_?????? (Directory)
+- ???????????? (Directory)
+- ??? (Directory)
+-  ?????????? ?????????????.txt (Archive)
+-  ??????????? ????????? 2.2.txt (Archive)
+-  ??????????? ?????????.txt (Archive)
+-  ???????? ???????????.txt (Archive)
+-  ???????? ???????.txt (Archive)
+- 360 Extreme Browser.lnk (Archive)
+- BlueWhale.lnk (Archive)
+- FRANKEN_AUDIT_20260207_202954.txt (Archive)
+- FRANKEN_START.cmd (Archive)
+- FRANKEN_START.lnk (Archive)
+- Google Docs.lnk (Archive)
+- Google Drive.lnk (Archive)
+- Google Sheets.lnk (Archive)
+- Google Slides.lnk (Archive)
+- n8n.lnk (Archive)
+- SystemScan_Report_20260127_202029.txt (Archive)
+- µTorrent.lnk (Archive)
+- ?????? ???????? ????????.bat (Archive)
+- ?????? ????? ???.bat (Archive)
+- ???? - Chrome.lnk (Archive)
+- ??????????.txt (Archive)
+- ?????_???.bat (Archive)
+- ????????? ???????? (2).txt (Archive)
+------------------------------------------------------------
+[2] PROJECT ROOT CHECK
+FRANKEN exists      : False
+???????????? exists : True
+------------------------------------------------------------
+[4] CRITICAL FILES
+C:\Users\user\Desktop\FRANKEN\tools\franken_runner.ps1 -> False
+C:\Users\user\Desktop\FRANKEN\pairs_detected.txt -> False
+C:\Users\user\Desktop\FRANKEN_START.cmd -> True
+C:\Users\user\Desktop\FRANKEN_START.lnk -> True
+------------------------------------------------------------
+[5] FILE BOM / HEADER CHECK
+CMD header: 40 65 63 68 6F 20 6F 66
+------------------------------------------------------------
+[6] FRANKEN_START.cmd CONTENT
+@echo off
+chcp 65001 >nul
+set PYTHONUTF8=1
+title FRANKEN SYSTEM
+
+cd /d "C:\Users\user\Desktop\FRANKEN"
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass ^
+ -File "C:\Users\user\Desktop\FRANKEN\tools\franken_runner.ps1" ^
+ -Root "C:\Users\user\Desktop\FRANKEN" ^
+ -PairsCsv "ADAUSDT,BNBUSDT,BTCUSDT,ETHUSDT,SOLUSDT" ^
+ -TopN 100 -TopK 3 -KeepErrPerPair 10 -MonRefreshSec 5
+
+echo.
+echo ========================================
+echo   PROCESS EXITED
+echo ========================================
+pause
+------------------------------------------------------------
+[7] SHORTCUT (.lnk) TARGET
+TargetPath      : C:\Users\user\Desktop\FRANKEN_START.cmd
+Arguments       : 
+WorkingDirectory: C:\Users\user\Desktop
+------------------------------------------------------------
+[8] PYTHON CHECK
+python.exe -> C:\Users\user\AppData\Local\Programs\Python\Python311\python.exe
+py.exe -> C:\Users\user\AppData\Local\Programs\Python\Launcher\py.exe
+------------------------------------------------------------
+[9] ENCODING TEST
+CMD ASCII test   : @echo off
+chcp 65001
+------------------------------------------------------------
+AUDIT FINISHED
+UPLOAD THIS FILE TO CHATGPT
