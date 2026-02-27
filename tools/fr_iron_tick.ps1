@@ -1,10 +1,22 @@
+﻿function Invoke-Git([string[]]$Args){
+  # Captures stderr+stdout, does NOT throw on progress noise; throws only if exitcode != 0
+  $out = & git @Args 2>&1
+  $code = $LASTEXITCODE
+  if($code -ne 0){
+    throw ("git " + ($Args -join " ") + " failed (exit=$code):
+" + ($out -join "
+"))
+  }
+  return $out
+}
+
 Set-StrictMode -Off
 $ErrorActionPreference = 'SilentlyContinue'
 
 function Ok($m){ Write-Host "[OK]   $m" -ForegroundColor Green }
 function Warn($m){ Write-Host "[WARN] $m" -ForegroundColor Yellow }
 
-$ROOT   = 'C:\Users\user\Desktop\Франкинштэйн'
+$ROOT   = 'C:\Users\user\Desktop\Ð¤Ñ€Ð°Ð½ÐºÐ¸Ð½ÑˆÑ‚ÑÐ¹Ð½'
 $BRANCH = 'main'
 
 if(!(Test-Path -LiteralPath $ROOT)){ exit 10 }
