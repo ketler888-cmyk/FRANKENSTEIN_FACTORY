@@ -36,6 +36,6 @@ _bak_fix_*/
 *.bak*
 *.disabled
 
-# Big tabular/binary artifacts
+# Big artifacts
 *.parquet
 *.csv
