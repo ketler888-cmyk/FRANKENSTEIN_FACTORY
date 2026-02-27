@@ -6,43 +6,29 @@ try {
   $OutputEncoding = $utf8
 } catch {}
 
-$ROOT = 'C:\Users\user\Desktop\Франкинштэйн'
-$LOGS = 'C:\Users\user\Desktop\Франкинштэйн\logs'
-$LOG  = 'C:\Users\user\Desktop\Франкинштэйн\logs\fr_iron_keepalive.log'
-$AUTOSYNC = Join-Path $ROOT 'tools\fr_autosync.ps1'
+$ROOT   = 'C:\Users\user\Desktop\Франкинштэйн'
+$BRANCH = 'main'
+$LOG    = 'C:\Users\user\Desktop\Франкинштэйн\logs\fr_iron_keepalive.log'
 
-function LogLine([string]$s){
-  try { ($s) | Out-File -LiteralPath $LOG -Append -Encoding UTF8 } catch {}
+function LogLine([string]$m){
+  try { ($(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' | ' + $m) | Out-File -LiteralPath $LOG -Append -Encoding UTF8 } catch {}
+}
+function IsAlive(){
+  try{
+    $p = Get-WmiObject Win32_Process -Filter "Name='powershell.exe'" |
+      Where-Object { $_.CommandLine -and ($_.CommandLine -like "*fr_iron_tick.ps1*") } |
+      Select-Object -First 1
+    return [bool]$p
+  } catch { return $false }
 }
 
-LogLine ('--- KEEPALIVE ' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' ---')
+LogLine 'KEEPALIVE START'
+if(!(Test-Path -LiteralPath $ROOT)){ LogLine ('ROOT missing: ' + $ROOT); exit 21 }
+try { Set-Location $ROOT } catch { LogLine 'cd failed'; exit 22 }
+if(!(Test-Path -LiteralPath (Join-Path $ROOT '.git'))){ LogLine 'Not a git repo'; exit 23 }
 
-if(!(Test-Path -LiteralPath $ROOT)){ LogLine 'ROOT missing'; exit 2 }
-if(!(Test-Path -LiteralPath $AUTOSYNC)){ LogLine 'fr_autosync.ps1 missing'; exit 3 }
+# just a sanity fetch (non-fatal if offline)
+try { & git fetch --prune origin 1>$null 2>$null } catch { LogLine 'fetch failed (offline?)' }
 
-# detect autosync by commandline substring
-try {
-  $running = Get-WmiObject Win32_Process -Filter "Name='powershell.exe'" |
-    Where-Object { $_.CommandLine -and ($_.CommandLine -like '*fr_autosync.ps1*') }
-} catch {
-  LogLine ('WMI error: ' + $_.Exception.Message)
-  exit 4
-}
-
-if(-not $running){
-  try {
-    Start-Process -FilePath 'powershell.exe' -ArgumentList @(
-      '-NoProfile',
-      '-ExecutionPolicy','Bypass',
-      '-File', $AUTOSYNC
-    ) -WindowStyle Hidden
-    LogLine 'Started fr_autosync.ps1'
-    exit 0
-  } catch {
-    LogLine ('Start-Process failed: ' + $_.Exception.Message)
-    exit 5
-  }
-} else {
-  LogLine ('Already running PID=' + (($running | Select-Object -First 1).ProcessId))
-  exit 0
-}
+LogLine 'KEEPALIVE OK'
+exit 0

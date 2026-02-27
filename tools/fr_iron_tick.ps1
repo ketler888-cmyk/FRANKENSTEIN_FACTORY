@@ -9,54 +9,44 @@ try {
 $ROOT   = 'C:\Users\user\Desktop\Франкинштэйн'
 $BRANCH = 'main'
 $MAX_FILE_BYTES = 99614720
-$LOG   = 'C:\Users\user\Desktop\Франкинштэйн\logs\fr_iron_tick.log'
+$LOG    = 'C:\Users\user\Desktop\Франкинштэйн\logs\fr_iron_tick.log'
 
-function LogLine([string]$s){
-  try { ($s) | Out-File -LiteralPath $LOG -Append -Encoding UTF8 } catch {}
+function LogLine([string]$m){
+  try { ($(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' | ' + $m) | Out-File -LiteralPath $LOG -Append -Encoding UTF8 } catch {}
 }
-
-function Invoke-Git([string[]]$GitArgs){
-  if($null -eq $GitArgs -or $GitArgs.Count -eq 0){ throw 'Invoke-Git: empty args' }
-  $out = & git @GitArgs 2>&1
+function GitRun([string[]]$a){
+  $out = & git @a 2>&1
   $code = $LASTEXITCODE
   if($code -ne 0){
-    throw ("git " + ($GitArgs -join ' ') + " failed (exit=$code):
-" + ($out -join "
-"))
+    LogLine (('GIT FAIL (' + $code + '): git ' + ($a -join ' ') + ' | ' + (($out | ForEach-Object { $_ }) -join ' || ')))
+    return $false
   }
-  return $out
+  return $true
 }
 
-LogLine ('--- TICK ' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' ---')
+LogLine 'TICK START'
+if(!(Test-Path -LiteralPath $ROOT)){ LogLine ('ROOT missing: ' + $ROOT); exit 31 }
+try { Set-Location $ROOT } catch { LogLine 'cd failed'; exit 32 }
+if(!(Test-Path -LiteralPath (Join-Path $ROOT '.git'))){ LogLine 'Not a git repo'; exit 33 }
 
-if(!(Test-Path -LiteralPath $ROOT)){ LogLine 'ROOT missing'; exit 2 }
-Set-Location $ROOT
-
-# heal locks
+# heal locks / stuck ops
 Remove-Item -LiteralPath (Join-Path $ROOT '.git\index.lock') -Force -ErrorAction SilentlyContinue
 if(Test-Path -LiteralPath (Join-Path $ROOT '.git\rebase-merge')){ try{ & git rebase --abort 1>$null 2>$null } catch{} }
 if(Test-Path -LiteralPath (Join-Path $ROOT '.git\rebase-apply')){ try{ & git rebase --abort 1>$null 2>$null } catch{} }
 if(Test-Path -LiteralPath (Join-Path $ROOT '.git\MERGE_HEAD'))  { try{ & git merge  --abort 1>$null 2>$null } catch{} }
 
-# ensure branch (do not throw on non-terminating noise)
-try { Invoke-Git @('checkout',$BRANCH) | Out-Null } catch { LogLine $_.Exception.Message; exit 11 }
+# update refs (non-fatal if offline)
+GitRun @('fetch','--prune','origin') | Out-Null
 
-# update
-try { Invoke-Git @('fetch','--prune','origin') | Out-Null } catch { LogLine $_.Exception.Message; exit 12 }
-try { Invoke-Git @('rebase',('origin/' + $BRANCH)) | Out-Null } catch {
-  try { & git rebase --abort 1>$null 2>$null } catch {}
-  LogLine ('Rebase failed: ' + $_.Exception.Message)
-  exit 13
-}
+# nothing to do?
+$dirty = @(& git status --porcelain 2>$null)
+if($dirty.Count -eq 0){ LogLine 'CLEAN -> no commit'; exit 0 }
 
-# if clean -> exit
-$dirty = @( & git status --porcelain )
-if($dirty.Count -eq 0){ LogLine 'Clean -> no commit'; exit 0 }
+# stage all
+GitRun @('add','-A') | Out-Null
 
-# stage all BUT drop huge files from index
-Invoke-Git @('add','-A') | Out-Null
-
-$staged = @( & git diff --cached --name-only )
+# drop huge files from index (>95MB)
+$staged = @(& git diff --cached --name-only 2>$null)
 foreach($rel in $staged){
   if([string]::IsNullOrWhiteSpace($rel)){ continue }
   $p = Join-Path $ROOT $rel
@@ -71,17 +61,27 @@ foreach($rel in $staged){
   }
 }
 
-$still = @( & git diff --cached --name-only )
+$still = @(& git diff --cached --name-only 2>$null)
 if($still.Count -eq 0){ LogLine 'Nothing staged after size filter'; exit 0 }
 
 $msg = 'tick: ' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-try { Invoke-Git @('commit','-m',$msg) | Out-Null } catch { LogLine $_.Exception.Message; exit 14 }
+if(!(GitRun @('commit','-m',$msg))){ exit 41 }
 
-# push (stderr noise allowed, exitcode decides)
+# rebase to keep strict mirror (if remote moved)
+GitRun @('fetch','--prune','origin') | Out-Null
+try {
+  & git rebase ('origin/' + $BRANCH) 1>$null 2>$null
+} catch {
+  try { & git rebase --abort 1>$null 2>$null } catch {}
+  LogLine 'REBASE CONFLICT -> abort'
+  exit 42
+}
+
+# push (progress noise allowed; exitcode decides)
 $pushOut = & git push origin $BRANCH 2>&1
 if($LASTEXITCODE -ne 0){
-  LogLine ('PUSH FAIL: ' + ($pushOut -join ' | '))
-  exit 16
+  LogLine ('PUSH FAIL: ' + (($pushOut | ForEach-Object { $_ }) -join ' || '))
+  exit 43
 }
 
 LogLine 'PUSH OK'
