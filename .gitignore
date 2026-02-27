@@ -1,13 +1,41 @@
-﻿SCALPING_DATA*/
+# ================= FRANKENSTEIN_FACTORY .gitignore =================
+# Data / caches / outputs (must NEVER be tracked)
+SCALPING_DATA*/
+SCALPING_DATA
 SCALPING_DATA_PARQUET*/
+SCALPING_DATA_PARQUET
+SCALPING_DATA_RAW*/
+SCALPING_DATA_RAW
+
 cache/
-logs/
-results*/
-*.parquet
-*.csv
-.venv/
 __pycache__/
+.venv/
+*.pyc
+
+logs/
+logs_*/
+logs-block*/
+logs_block*/
 *.log
-*.zip
+
+results/
+results_*/
+results-ga*/
+results_ga/
+
 tmp/
 temp/
+
+# Audits / support packs / backups (local only)
+FORENSIC_AUDIT_*/
+FRANKEN_*AUDIT*/
+_support_pack_*/
+_bak_fix_*/
+даные чятов/
+*.zip
+*.bak*
+*.disabled
+
+# Big tabular/binary artifacts
+*.parquet
+*.csv
