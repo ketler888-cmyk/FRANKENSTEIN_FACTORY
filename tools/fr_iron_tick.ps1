@@ -1,6 +1,5 @@
-Set-StrictMode -Off
+﻿Set-StrictMode -Off
 $ErrorActionPreference = 'SilentlyContinue'
-
 try {
   $utf8 = New-Object System.Text.UTF8Encoding($false)
   [Console]::OutputEncoding = $utf8
@@ -9,93 +8,81 @@ try {
 
 $ROOT   = 'C:\Users\user\Desktop\Франкинштэйн'
 $BRANCH = 'main'
-$LOG    = Join-Path $ROOT 'logs\fr_iron_tick.log'
+$MAX_FILE_BYTES = 99614720
+$LOG   = 'C:\Users\user\Desktop\Франкинштэйн\logs\fr_iron_tick.log'
 
-function Log([string]$m){
-  try { ('[' + (Get-Date -Format s) + '] ' + $m) | Add-Content -LiteralPath $LOG -Encoding UTF8 } catch {}
+function LogLine([string]$s){
+  try { ($s) | Out-File -LiteralPath $LOG -Append -Encoding UTF8 } catch {}
 }
 
-function Invoke-Git([string[]]$Args){
-  # Captures stdout+stderr; throws ONLY when exitcode != 0 (progress messages are fine)
-  $out = & git @Args 2>&1
+function Invoke-Git([string[]]$GitArgs){
+  if($null -eq $GitArgs -or $GitArgs.Count -eq 0){ throw 'Invoke-Git: empty args' }
+  $out = & git @GitArgs 2>&1
   $code = $LASTEXITCODE
   if($code -ne 0){
-    throw ("git " + ($Args -join ' ') + " failed (exit=$code):
+    throw ("git " + ($GitArgs -join ' ') + " failed (exit=$code):
 " + ($out -join "
 "))
   }
   return $out
 }
 
-try { Set-Location $ROOT } catch { Log('Set-Location failed: ' + $_.Exception.Message); exit 0 }
+LogLine ('--- TICK ' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' ---')
 
-# heal stuck ops (safe)
-try { Remove-Item -LiteralPath (Join-Path $ROOT '.git\index.lock') -Force -ErrorAction SilentlyContinue } catch {}
-if(Test-Path -LiteralPath (Join-Path $ROOT '.git\rebase-merge')){ try{ Invoke-Git @('rebase','--abort') | Out-Null } catch{} }
-if(Test-Path -LiteralPath (Join-Path $ROOT '.git\rebase-apply')){ try{ Invoke-Git @('rebase','--abort') | Out-Null } catch{} }
-if(Test-Path -LiteralPath (Join-Path $ROOT '.git\MERGE_HEAD'))  { try{ Invoke-Git @('merge','--abort')  | Out-Null } catch{} }
+if(!(Test-Path -LiteralPath $ROOT)){ LogLine 'ROOT missing'; exit 2 }
+Set-Location $ROOT
 
-try { Invoke-Git @('checkout', $BRANCH) | Out-Null } catch { Log('checkout warning: ' + $_.Exception.Message) }
+# heal locks
+Remove-Item -LiteralPath (Join-Path $ROOT '.git\index.lock') -Force -ErrorAction SilentlyContinue
+if(Test-Path -LiteralPath (Join-Path $ROOT '.git\rebase-merge')){ try{ & git rebase --abort 1>$null 2>$null } catch{} }
+if(Test-Path -LiteralPath (Join-Path $ROOT '.git\rebase-apply')){ try{ & git rebase --abort 1>$null 2>$null } catch{} }
+if(Test-Path -LiteralPath (Join-Path $ROOT '.git\MERGE_HEAD'))  { try{ & git merge  --abort 1>$null 2>$null } catch{} }
 
-try { Invoke-Git @('fetch','--prune','origin') | Out-Null } catch { Log('fetch failed: ' + $_.Exception.Message); exit 0 }
+# ensure branch (do not throw on non-terminating noise)
+try { Invoke-Git @('checkout',$BRANCH) | Out-Null } catch { LogLine $_.Exception.Message; exit 11 }
 
-# rebase to keep linear history
-try { Invoke-Git @('rebase', ('origin/' + $BRANCH)) | Out-Null } catch {
-  try { Invoke-Git @('rebase','--abort') | Out-Null } catch {}
-  Log('rebase failed: ' + $_.Exception.Message)
-  exit 0
+# update
+try { Invoke-Git @('fetch','--prune','origin') | Out-Null } catch { LogLine $_.Exception.Message; exit 12 }
+try { Invoke-Git @('rebase',('origin/' + $BRANCH)) | Out-Null } catch {
+  try { & git rebase --abort 1>$null 2>$null } catch {}
+  LogLine ('Rebase failed: ' + $_.Exception.Message)
+  exit 13
 }
 
-# if clean -> nothing to do
-$dirty = @( & git status --porcelain 2>$null )
-if($dirty.Count -eq 0){ Log('clean -> no-op'); exit 0 }
+# if clean -> exit
+$dirty = @( & git status --porcelain )
+if($dirty.Count -eq 0){ LogLine 'Clean -> no commit'; exit 0 }
 
-# add all changes (respects .gitignore)
-try { Invoke-Git @('add','-A') | Out-Null } catch { Log('add failed: ' + $_.Exception.Message); exit 0 }
-$staged = @( & git diff --cached --name-only 2>$null )
-if($staged.Count -eq 0){ Log('nothing staged'); exit 0 }
+# stage all BUT drop huge files from index
+Invoke-Git @('add','-A') | Out-Null
 
-# block huge files (>95MB) to avoid GitHub rejection
+$staged = @( & git diff --cached --name-only )
 foreach($rel in $staged){
   if([string]::IsNullOrWhiteSpace($rel)){ continue }
   $p = Join-Path $ROOT $rel
-  try {
-    if(Test-Path -LiteralPath $p){
-      $len = (Get-Item -LiteralPath $p).Length
-      if($len -ge 95MB){
-        & git reset -q -- $rel 2>$null | Out-Null
-        Log('SKIP huge file: ' + $rel)
+  if(Test-Path -LiteralPath $p){
+    try{
+      $len = (Get-Item -LiteralPath $p -ErrorAction Stop).Length
+      if($len -ge $MAX_FILE_BYTES){
+        & git reset -q -- $rel 1>$null 2>$null
+        LogLine ('DROP >95MB from index: ' + $rel)
       }
-    }
-  } catch {}
+    } catch {}
+  }
 }
 
-$still = @( & git diff --cached --name-only 2>$null )
-if($still.Count -eq 0){ Log('after huge-skip nothing staged'); exit 0 }
+$still = @( & git diff --cached --name-only )
+if($still.Count -eq 0){ LogLine 'Nothing staged after size filter'; exit 0 }
 
-try {
-  $msg = 'tick: ' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-  Invoke-Git @('commit','-m', $msg) | Out-Null
-  Log('committed: ' + $msg)
-} catch {
-  Log('commit failed: ' + $_.Exception.Message)
-  exit 0
+$msg = 'tick: ' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+try { Invoke-Git @('commit','-m',$msg) | Out-Null } catch { LogLine $_.Exception.Message; exit 14 }
+
+# push (stderr noise allowed, exitcode decides)
+$pushOut = & git push origin $BRANCH 2>&1
+if($LASTEXITCODE -ne 0){
+  LogLine ('PUSH FAIL: ' + ($pushOut -join ' | '))
+  exit 16
 }
 
-# sync again and push
-try { Invoke-Git @('fetch','--prune','origin') | Out-Null } catch { Log('fetch2 failed: ' + $_.Exception.Message); exit 0 }
-try { Invoke-Git @('rebase', ('origin/' + $BRANCH)) | Out-Null } catch {
-  try { Invoke-Git @('rebase','--abort') | Out-Null } catch {}
-  Log('rebase2 failed: ' + $_.Exception.Message)
-  exit 0
-}
-
-try {
-  Invoke-Git @('push','origin', $BRANCH) | Out-Null
-  Log('push ok')
-} catch {
-  Log('push failed: ' + $_.Exception.Message)
-  exit 0
-}
-
+LogLine 'PUSH OK'
 exit 0

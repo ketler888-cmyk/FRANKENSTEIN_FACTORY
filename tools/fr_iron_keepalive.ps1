@@ -1,6 +1,5 @@
-Set-StrictMode -Off
+﻿Set-StrictMode -Off
 $ErrorActionPreference = 'SilentlyContinue'
-
 try {
   $utf8 = New-Object System.Text.UTF8Encoding($false)
   [Console]::OutputEncoding = $utf8
@@ -8,37 +7,42 @@ try {
 } catch {}
 
 $ROOT = 'C:\Users\user\Desktop\Франкинштэйн'
+$LOGS = 'C:\Users\user\Desktop\Франкинштэйн\logs'
+$LOG  = 'C:\Users\user\Desktop\Франкинштэйн\logs\fr_iron_keepalive.log'
 $AUTOSYNC = Join-Path $ROOT 'tools\fr_autosync.ps1'
-$LOG = Join-Path $ROOT 'logs\fr_iron_keepalive.log'
 
-function Log([string]$m){
-  try { ('[' + (Get-Date -Format s) + '] ' + $m) | Add-Content -LiteralPath $LOG -Encoding UTF8 } catch {}
+function LogLine([string]$s){
+  try { ($s) | Out-File -LiteralPath $LOG -Append -Encoding UTF8 } catch {}
 }
 
-try { Set-Location $ROOT } catch { Log('Set-Location failed: ' + $_.Exception.Message); exit 0 }
+LogLine ('--- KEEPALIVE ' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' ---')
 
-# heal stale git lock (safe)
-try { Remove-Item -LiteralPath (Join-Path $ROOT '.git\index.lock') -Force -ErrorAction SilentlyContinue } catch {}
+if(!(Test-Path -LiteralPath $ROOT)){ LogLine 'ROOT missing'; exit 2 }
+if(!(Test-Path -LiteralPath $AUTOSYNC)){ LogLine 'fr_autosync.ps1 missing'; exit 3 }
 
-# start watcher if missing
+# detect autosync by commandline substring
 try {
   $running = Get-WmiObject Win32_Process -Filter "Name='powershell.exe'" |
-    Where-Object { $_.CommandLine -and ($_.CommandLine -like "*fr_autosync.ps1*") }
-
-  if(-not $running){
-    if(Test-Path -LiteralPath $AUTOSYNC){
-      Start-Process -FilePath 'powershell.exe' -ArgumentList @(
-        '-NoProfile','-ExecutionPolicy','Bypass','-File', $AUTOSYNC
-      ) -WindowStyle Hidden
-      Log('Watcher started')
-    } else {
-      Log('Missing autosync: ' + $AUTOSYNC)
-    }
-  } else {
-    Log('Watcher already running')
-  }
+    Where-Object { $_.CommandLine -and ($_.CommandLine -like '*fr_autosync.ps1*') }
 } catch {
-  Log('Keepalive error: ' + $_.Exception.Message)
+  LogLine ('WMI error: ' + $_.Exception.Message)
+  exit 4
 }
 
-exit 0
+if(-not $running){
+  try {
+    Start-Process -FilePath 'powershell.exe' -ArgumentList @(
+      '-NoProfile',
+      '-ExecutionPolicy','Bypass',
+      '-File', $AUTOSYNC
+    ) -WindowStyle Hidden
+    LogLine 'Started fr_autosync.ps1'
+    exit 0
+  } catch {
+    LogLine ('Start-Process failed: ' + $_.Exception.Message)
+    exit 5
+  }
+} else {
+  LogLine ('Already running PID=' + (($running | Select-Object -First 1).ProcessId))
+  exit 0
+}
