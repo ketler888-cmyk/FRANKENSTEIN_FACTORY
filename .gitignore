@@ -1,41 +1,53 @@
 # ================= FRANKENSTEIN_FACTORY .gitignore =================
-# Data / caches / outputs (must NEVER be tracked)
+
+# --- data (NEVER in git) ---
 SCALPING_DATA*/
-SCALPING_DATA
 SCALPING_DATA_PARQUET*/
-SCALPING_DATA_PARQUET
 SCALPING_DATA_RAW*/
-SCALPING_DATA_RAW
+SCALPING_DATA/**/*.parquet
+SCALPING_DATA/**/*.csv
+SCALPING_DATA_PARQUET/**/*.parquet
+SCALPING_DATA_PARQUET/**/*.csv
+SCALPING_DATA_RAW/**/*.parquet
+SCALPING_DATA_RAW/**/*.csv
 
-cache/
-__pycache__/
+# --- python env/caches ---
 .venv/
+__pycache__/
 *.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
 
+# --- runtime outputs ---
+cache/
 logs/
 logs_*/
-logs-block*/
-logs_block*/
-*.log
-
 results/
 results_*/
-results-ga*/
 results_ga/
-
 tmp/
 temp/
+runtime/logs/
+runtime/results/
 
-# Audits / support packs / backups (local only)
+# --- audits/backups ---
 FORENSIC_AUDIT_*/
 FRANKEN_*AUDIT*/
+FRANKEN_*_LOGS_*/
 _support_pack_*/
 _bak_fix_*/
 даные чятов/
-*.zip
 *.bak*
-*.disabled
-
-# Big artifacts
+*.zip
+*.log
+*.tmp
+*.disabledSCALPING_DATA/
+SCALPING_DATA_PARQUET/
+SCALPING_DATA_RAW/
+parquet/
 *.parquet
 *.csv
+*.dmg
