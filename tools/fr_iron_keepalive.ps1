@@ -19,7 +19,6 @@ if(!(Test-Path -LiteralPath $ROOT)){ LogLine ('ROOT missing: ' + $ROOT); exit 21
 try { Set-Location $ROOT } catch { LogLine 'cd failed'; exit 22 }
 if(!(Test-Path -LiteralPath (Join-Path $ROOT '.git'))){ LogLine 'Not a git repo'; exit 23 }
 
-# non-fatal fetch (offline ok)
 try { & git fetch --prune origin 1>$null 2>$null } catch { LogLine 'fetch failed (offline?)' }
 
 LogLine 'KEEPALIVE OK'
