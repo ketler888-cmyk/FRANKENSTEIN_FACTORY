@@ -186,3 +186,9 @@ Thumbs.db
 desktop.ini
 .DS_Store
 # ================= END FRANKEN MIRROR LOCK =================
+*.pyd
+metrics/
+gene_pool/
+_AUDIT*/
+_BACKUPS*/
+*.bak_*
