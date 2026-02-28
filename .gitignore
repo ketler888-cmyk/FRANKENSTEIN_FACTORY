@@ -1,17 +1,17 @@
 # ================= FRANKEN | CODE-ONLY MIRROR =================
-# --- venv ---
 .venv/
 venv/
 __pycache__/
 *.pyc
 *.pyo
 
-# --- data / results / caches / logs ---
 SCALPING_DATA*/
 results*/
+results_ga*/
 cache/
 logs/
 *_cache/
+
 *.parquet
 *.csv
 *.tsv
@@ -21,18 +21,15 @@ logs/
 *.sqlite3
 *.log
 
-# --- archives / dumps ---
 *.zip
 *.7z
 *.rar
 
-# --- ops runtime ---
 ops/heartbeat.json
 ops/*.pid
 ops/STOP_FACTORY
 ops/vendor.lock.json
 
-# --- backups/audits/sources ---
 _BACKUPS_MIRROR/
 BACKUPS_MIRROR/
 _sources/
@@ -42,7 +39,6 @@ _AUDIT_*/
 КОНТЕКСТНЫЙ_ЧАТ/
 ЖЕЛЕЗНЫЙ_ЗОНД/
 
-# --- OS junk ---
 Thumbs.db
 desktop.ini
 .DS_Store
