@@ -55,6 +55,9 @@ _sources/
 AUDIT_*/
 _AUDIT_*/
 
+# junk safety (never mirror)
+*.BROKEN_20??????_??????
+
 # OS noise
 Thumbs.db
 desktop.ini
