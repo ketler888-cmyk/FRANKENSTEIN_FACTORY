@@ -1,12 +1,13 @@
-﻿# ================= FRANKEN CLEAN MIRROR RULES =================
+﻿# ================= FRANKEN | CODE-ONLY MIRROR =================
 
-# Python env
+# Python env / cache
 .venv/
 venv/
 __pycache__/
 *.pyc
+*.pyo
 
-# DATA (NEVER MIRROR)
+# DATA (LOCAL ONLY)
 SCALPING_DATA/
 SCALPING_DATA_PARQUET/
 SCALPING_DATA_RAW/
@@ -18,23 +19,27 @@ logs/
 *.csv
 *.duckdb
 *.feather
+*.arrow
 
-# BACKUPS / AUDITS / MIRRORS
+# Backups / audits / dumps (LOCAL ONLY)
+BACKUPS_MIRROR/
 _BACKUPS_MIRROR/
 AUDIT_*/
+_AUDIT_*/
+АУДИТ_*/
 ЗЕРКАЛЬНЫЕ_ОТЧЕТЫ/
-КОНТЕКСТНЫЙ_ЧАТ/
-ЖЕЛЕЗНЫЙ_ЗОНД/
-
-# OS / trash
-.DS_Store
-Thumbs.db
-desktop.ini
-*.log
+КОНТЕКСТНЫЙ_ЧАТ*/
+ЖЕЛЕЗНЫЙ_ЗОНД*/
 *.zip
 *.7z
 
-# Local runtime files
-ops\heartbeat.json
-ops\*.pid
-ops\STOP_FACTORY
+# Runtime artifacts (LOCAL ONLY)
+ops/heartbeat.json
+ops/*.pid
+ops/STOP_FACTORY
+ops/vendor.lock.json
+
+# OS trash
+Thumbs.db
+desktop.ini
+.DS_Store
