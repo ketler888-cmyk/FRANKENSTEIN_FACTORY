@@ -129,3 +129,60 @@ desktop.ini
 *.txt
 !requirements*.txt
 # ================================================================
+
+# ================= FRANKEN MIRROR LOCK (managed) =================
+# data / caches / results
+SCALPING_DATA/
+SCALPING_DATA_*/
+cache/
+caches/
+logs/
+results/
+results_*/
+results_ga/
+parquet/
+*.parquet
+*.csv
+*.tsv
+*.duckdb
+*.db
+*.sqlite
+*.sqlite3
+
+# runtime artifacts
+*.log
+*.pid
+ops/*.pid
+ops/heartbeat.json
+ops/STOP_FACTORY
+
+# archives / checkpoints
+*.zip
+*.7z
+*.rar
+
+# diagnostics / inventories
+*_before.txt
+*_inventory*.txt
+*_diag_*.txt
+ohlcv_find*.txt
+ohlcv_sniff*.txt
+ohlcv_sniff*.json
+pairs_detected*.txt
+data_map_*.txt
+status_before.txt
+stderr_before.txt
+_GIT_DIAG_*.txt
+
+# protect: ignore ALL .txt by default (allow only requirements*.txt)
+*.txt
+!requirements*.txt
+
+# kill known patcher artifacts in ops
+ops/patch_pairs*.py
+
+# OS noise
+Thumbs.db
+desktop.ini
+.DS_Store
+# ================= END FRANKEN MIRROR LOCK =================

@@ -1,4 +1,4 @@
-﻿import os, json, time, csv
+import os, json, time, csv
     main()
 import os, sys
 if os.name == "nt":
@@ -17,8 +17,8 @@ from backtest_runner import BacktestRunner
 # === FRANKEN_SCREEN_PATCH (readers wrapper) ===
 import os
 try:
-    import math
-    import pandas as pd
+import math
+import pandas as pd
 except Exception:
     pd = None
 
