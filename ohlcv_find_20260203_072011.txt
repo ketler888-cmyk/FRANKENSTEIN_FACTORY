@@ -1,9 +1,0 @@
-﻿==== OHLCV FIND START (schema-only) ====
-C:\Users\user\Desktop\Франкинштэйн
-
-FilesScanned: 203
-
-==== RESULT JSON (hits + first errors) ====
-
-
-OK: C:\Users\user\Desktop\Франкинштэйн\ohlcv_find_20260203_072011.txt

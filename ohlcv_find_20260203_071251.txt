@@ -1,9 +1,0 @@
-﻿==== OHLCV FIND START ====
-C:\Users\user\Desktop\Франкинштэйн
-
-FilesScanned: 176
-
-==== OHLCV CANDIDATES (paths + columns) ====
-
-
-OK: C:\Users\user\Desktop\Франкинштэйн\ohlcv_find_20260203_071251.txt
