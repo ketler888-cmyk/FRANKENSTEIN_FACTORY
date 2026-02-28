@@ -1,4 +1,4 @@
-# ================= FRANKENSTEIN_FACTORY .gitignore =================
+﻿# ================= FRANKENSTEIN_FACTORY .gitignore =================
 
 # --- data (NEVER in git) ---
 SCALPING_DATA*/
@@ -52,3 +52,17 @@ parquet/
 *.csv
 *.dmg
 SCALPING_DATA/
+
+# === FRANKEN: keep repo clean ===
+SCALPING_DATA*/
+cache*/
+logs*/
+results*/
+results_ga*/
+*.parquet
+*.csv
+*.zip
+*.7z
+*.pid
+ops/vendor.lock.json
+vendor/**/__pycache__/
