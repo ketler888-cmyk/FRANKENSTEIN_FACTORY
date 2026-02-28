@@ -1,68 +1,40 @@
-﻿# ================= FRANKENSTEIN_FACTORY .gitignore =================
+﻿# ================= FRANKEN CLEAN MIRROR RULES =================
 
-# --- data (NEVER in git) ---
-SCALPING_DATA*/
-SCALPING_DATA_PARQUET*/
-SCALPING_DATA_RAW*/
-SCALPING_DATA/**/*.parquet
-SCALPING_DATA/**/*.csv
-SCALPING_DATA_PARQUET/**/*.parquet
-SCALPING_DATA_PARQUET/**/*.csv
-SCALPING_DATA_RAW/**/*.parquet
-SCALPING_DATA_RAW/**/*.csv
-
-# --- python env/caches ---
+# Python env
 .venv/
+venv/
 __pycache__/
 *.pyc
-*.pyo
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.cache/
 
-# --- runtime outputs ---
-cache/
-logs/
-logs_*/
-results/
-results_*/
-results_ga/
-tmp/
-temp/
-runtime/logs/
-runtime/results/
-
-# --- audits/backups ---
-FORENSIC_AUDIT_*/
-FRANKEN_*AUDIT*/
-FRANKEN_*_LOGS_*/
-_support_pack_*/
-_bak_fix_*/
-даные чятов/
-*.bak*
-*.zip
-*.log
-*.tmp
-*.disabledSCALPING_DATA/
+# DATA (NEVER MIRROR)
+SCALPING_DATA/
 SCALPING_DATA_PARQUET/
 SCALPING_DATA_RAW/
-parquet/
+results/
+results_ga/
+cache/
+logs/
 *.parquet
 *.csv
-*.dmg
-SCALPING_DATA/
+*.duckdb
+*.feather
 
-# === FRANKEN: keep repo clean ===
-SCALPING_DATA*/
-cache*/
-logs*/
-results*/
-results_ga*/
-*.parquet
-*.csv
+# BACKUPS / AUDITS / MIRRORS
+_BACKUPS_MIRROR/
+AUDIT_*/
+ЗЕРКАЛЬНЫЕ_ОТЧЕТЫ/
+КОНТЕКСТНЫЙ_ЧАТ/
+ЖЕЛЕЗНЫЙ_ЗОНД/
+
+# OS / trash
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
 *.zip
 *.7z
-*.pid
-ops/vendor.lock.json
-vendor/**/__pycache__/
+
+# Local runtime files
+ops\heartbeat.json
+ops\*.pid
+ops\STOP_FACTORY

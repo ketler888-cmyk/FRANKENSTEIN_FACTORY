@@ -1,6 +1,0 @@
-﻿?? _BACKUPS_MIRROR/
-?? _autosync_ping.txt
-?? tools/fr_autosync_start.ps1
-?? tools/fr_keepalive.ps1
-?? tools/fr_sync_tick.ps1
-?? "╤é╨╡╤ü╤é ╤ü╨╕╨╜╨│.txt"
