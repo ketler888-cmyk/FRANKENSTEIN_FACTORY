@@ -183,5 +183,5 @@ def main():
                 time.sleep(SLEEP_ON_ERROR)
 
 if __name__ == "__main__":
-    _progress('master_start', root=str(ROOT)) 
+    _progress('master_start', root=str(ROOT)))  # PROGRESS_MAIN_START_V1
     main()
