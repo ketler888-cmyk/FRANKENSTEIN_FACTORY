@@ -1,11 +1,15 @@
 {
-  "ok": false,
-  "state": "PAIR_ERROR",
-  "ts": "2026-02-28T09:06:58Z",
+  "ok": true,
+  "state": "CYCLE_DONE",
+  "ts": "2026-02-28T09:08:58Z",
   "cycle": 4,
-  "pair": "AVAXUSDT",
+  "duration_sec": 600.53,
   "mode": "grid",
-  "error": "runner rc=1",
-  "traceback": "Traceback (most recent call last):\n  File \"C:\\Users\\user\\Desktop\\Франкинштэйн\\ops\\factory_247.py\", line 124, in main\n    raise RuntimeError(f\"runner rc={rc}\")\nRuntimeError: runner rc=1\n",
-  "log": "C:\\Users\\user\\Desktop\\Франкинштэйн\\logs\\factory_247\\000004_AVAXUSDT_grid.log"
+  "pairs": [
+    "ADAUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "BTCUSDT",
+    "AVAXUSDT"
+  ]
 }
