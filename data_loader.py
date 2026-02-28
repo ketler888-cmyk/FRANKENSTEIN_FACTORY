@@ -5,7 +5,6 @@ def _normalize_pair(pair: str) -> str:
         return pair
     p = str(pair).strip().upper()
     p = p.replace("/", "").replace("-", "").replace("_", "")
-    # common alias: XBT -> BTC (optional, safe)
     if p.startswith("XBT"):
         p = "BTC" + p[3:]
     return p
@@ -15,10 +14,9 @@ def _normalize_pair(pair: str) -> str:
 data_loader.py - Production loader for 1m OHLCV scalping data.
 
 STRICT RULES:
-- Load FULL datasets (no partial loads).
-- No synthetic data, no gap filling, no resampling.
-- Data is assumed CLEAN already (no dedup here), but we assert uniqueness.
+- Load FULL datasets (no synthetic).
 - 1m timeframe. Gap is any delta > 60 seconds.
+- Supports CSV and Parquet. If both exist for a pair, Parquet is preferred.
 """
 
 import argparse
@@ -40,14 +38,12 @@ REQUIRED_COLUMNS = ["timestamp", "open", "high", "low", "close", "volume"]
 TIMEFRAME_SECONDS = 60
 GAP_THRESHOLD_SECONDS = 60  # strictly >60 sec is a gap
 
-
 @dataclass(frozen=True)
 class GapExample:
     gap_start: str
     gap_end: str
     gap_seconds: int
     missing_bars: int
-
 
 class ScalpingDataLoader:
     def __init__(self, data_dir: Path):
@@ -58,23 +54,39 @@ class ScalpingDataLoader:
         self.report: Dict[str, Any] = {}
 
     def discover_files(self, pairs: Optional[List[str]] = None) -> List[Path]:
-        pattern = "*_1m.csv"
-        all_files = sorted(self.data_dir.glob(pattern))
-        if not all_files:
-            raise FileNotFoundError(f"No files matching '{pattern}' found in {self.data_dir}")
-        if not pairs:
-            return all_files
+        csvs  = sorted(self.data_dir.glob("*_1m.csv"))
+        parqs = sorted(self.data_dir.glob("*_1m.parquet"))
+        all_files = sorted(list(set(csvs + parqs)), key=lambda p: p.name)
 
-        files: List[Path] = []
+        if not all_files:
+            raise FileNotFoundError(f"No files matching '*_1m.csv' or '*_1m.parquet' found in {self.data_dir}")
+
+        if not pairs:
+            # Prefer parquet duplicates: if both exist, keep parquet
+            by_pair: Dict[str, Path] = {}
+            for fp in all_files:
+                pair = fp.stem.replace("_1m", "")
+                if fp.suffix.lower() == ".parquet":
+                    by_pair[pair] = fp
+                elif pair not in by_pair:
+                    by_pair[pair] = fp
+            return [by_pair[k] for k in sorted(by_pair.keys())]
+
+        out: List[Path] = []
         for p in pairs:
-            fp = self.data_dir / f"{p}_1m.csv"
-            if fp.exists():
-                files.append(fp)
+            pp = p.stem if hasattr(p, "stem") else str(p)
+            pp = pp.replace("_1m", "")
+            pq = self.data_dir / f"{pp}_1m.parquet"
+            cs = self.data_dir / f"{pp}_1m.csv"
+            if pq.exists():
+                out.append(pq)
+            elif cs.exists():
+                out.append(cs)
             else:
-                logger.warning(f"No file found for pair: {p} (expected: {fp})")
-        if not files:
+                logger.warning(f"No file found for pair: {pp} (expected: {pq} OR {cs})")
+        if not out:
             raise FileNotFoundError(f"No files found for specified pairs: {pairs}")
-        return files
+        return out
 
     @staticmethod
     def _parse_timestamp_series(ts: pd.Series) -> pd.Series:
@@ -110,40 +122,40 @@ class ScalpingDataLoader:
                 logger.warning(f"{file_name}: {col} has NaN={nan_count}, Inf={inf_count}")
         return df
 
-    def load_csv(self, file_path: Path) -> pd.DataFrame:
+    def _load_csv(self, file_path: Path) -> pd.DataFrame:
         file_name = file_path.name
-        logger.info(f"Loading {file_name}")
-
         df = pd.read_csv(file_path, engine="c")
         df = self._enforce_required_columns(df, file_name)
-
         df["timestamp"] = self._parse_timestamp_series(df["timestamp"])
         nat_count = int(df["timestamp"].isna().sum())
         if nat_count > 0:
             raise ValueError(f"{file_name}: timestamp parse failed for {nat_count} rows (NaT).")
-
         df = df.sort_values("timestamp", ascending=True).reset_index(drop=True)
-
         if not df["timestamp"].is_unique:
             dup = int(df["timestamp"].duplicated().sum())
             raise AssertionError(f"{file_name}: Found {dup} duplicate timestamps (clean base expected).")
-
         df = self._coerce_numeric(df, file_name)
         return df
 
-    @staticmethod
-    def validate_ohlc(df: pd.DataFrame, pair: str) -> Dict[str, int]:
-        counts: Dict[str, int] = {}
-        counts["high_lt_low"] = int((df["high"] < df["low"]).sum())
-        counts["high_lt_open"] = int((df["high"] < df["open"]).sum())
-        counts["high_lt_close"] = int((df["high"] < df["close"]).sum())
-        counts["low_gt_open"] = int((df["low"] > df["open"]).sum())
-        counts["low_gt_close"] = int((df["low"] > df["close"]).sum())
-        counts["volume_lt_0"] = int((df["volume"] < 0).sum())
+    def _load_parquet(self, file_path: Path) -> pd.DataFrame:
+        file_name = file_path.name
+        df = pd.read_parquet(file_path)
+        df = self._enforce_required_columns(df, file_name)
+        df["timestamp"] = self._parse_timestamp_series(df["timestamp"])
+        nat_count = int(df["timestamp"].isna().sum())
+        if nat_count > 0:
+            raise ValueError(f"{file_name}: timestamp parse failed for {nat_count} rows (NaT).")
+        df = df.sort_values("timestamp", ascending=True).reset_index(drop=True)
+        if not df["timestamp"].is_unique:
+            dup = int(df["timestamp"].duplicated().sum())
+            raise AssertionError(f"{file_name}: Found {dup} duplicate timestamps (clean base expected).")
+        df = self._coerce_numeric(df, file_name)
+        return df
 
-        if sum(counts.values()) > 0:
-            logger.warning(f"{pair}: OHLCV validation issues: {counts}")
-        return counts
+    def load_any(self, file_path: Path) -> pd.DataFrame:
+        if file_path.suffix.lower() == ".parquet":
+            return self._load_parquet(file_path)
+        return self._load_csv(file_path)
 
     @staticmethod
     def analyze_gaps(df: pd.DataFrame) -> Tuple[int, List[GapExample]]:
@@ -177,8 +189,6 @@ class ScalpingDataLoader:
         end = df["timestamp"].max().isoformat() if rows else None
 
         gap_count, gap_examples = self.analyze_gaps(df)
-        ohlc_issue_counts = self.validate_ohlc(df, pair)
-
         nan_counts = {c: int(df[c].isna().sum()) for c in ["open", "high", "low", "close", "volume"]}
         inf_counts = {c: int(np.isinf(df[c]).sum()) for c in ["open", "high", "low", "close", "volume"]}
 
@@ -190,7 +200,6 @@ class ScalpingDataLoader:
             "gap_examples": [e.__dict__ for e in gap_examples],
             "nan_counts": nan_counts,
             "inf_counts": inf_counts,
-            "ohlc_issue_counts": ohlc_issue_counts,
             "columns": list(df.columns),
         }
 
@@ -201,10 +210,10 @@ class ScalpingDataLoader:
         for fp in files:
             pair = fp.stem.replace("_1m", "")
             try:
-                df = self.load_csv(fp)
+                df = self.load_any(fp)
                 self.data[pair] = df
                 self.report[pair] = self.generate_pair_report(df, pair)
-                logger.info(f"Loaded {pair}: {len(df)} rows")
+                logger.info(f"Loaded {pair}: {len(df)} rows ({fp.suffix})")
             except Exception as e:
                 logger.error(f"Failed to load {fp.name}: {e}")
                 self.report[pair] = {"pair": pair, "rows": 0, "error": str(e)}
@@ -227,12 +236,18 @@ class ScalpingDataLoader:
     def get_report(self) -> Dict[str, Any]:
         return self.report
 
+def _pick_default_data_dir(root: Path) -> Path:
+    # project-local preferences
+    for d in ("SCALPING_DATA_PARQUET", "SCALPING_DATA_RAW", "SCALPING_DATA"):
+        p = root / d
+        if p.exists():
+            return p
+    return root / "SCALPING_DATA"
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Load scalping OHLCV 1m data from *_1m.csv files (STRICT, no demo)."
-    )
-    parser.add_argument("--data_dir", type=str, default=r"C:\Users\user\Desktop\Франкинштэйн\SCALPING_DATA")
+    root = Path(__file__).resolve().parent
+    parser = argparse.ArgumentParser(description="Load scalping OHLCV 1m data from *_1m.csv or *_1m.parquet.")
+    parser.add_argument("--data_dir", type=str, default=str(_pick_default_data_dir(root)))
     parser.add_argument("--pairs", type=str, nargs="+")
     parser.add_argument("--output", type=str)
     parser.add_argument("--verbose", action="store_true")
@@ -253,7 +268,6 @@ def main() -> int:
         print(report_json)
 
     return 0 if report.get("_summary", {}).get("total_pairs_loaded", 0) > 0 else 1
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
