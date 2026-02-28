@@ -1141,7 +1141,7 @@ class BacktestRunnerV3:
 def main():
     p = argparse.ArgumentParser(description="Walk-forward backtest v3 (ATR TP/SL)")
     p.add_argument("--debug_signals", action="store_true", help="Print entry filter pass statistics (diagnostic)")
-    default_project_dir = Path(r"C:\Users\user\Desktop\Франкинштэйн")
+    default_project_dir = Path(__file__).resolve().parent  # FRANKEN_DYNAMIC_ROOT_PATCH_V1
     p.add_argument('--data_dir', type=str, default=str(default_project_dir / "SCALPING_DATA"))
     p.add_argument('--cache_dir', type=str, default=str(default_project_dir / "cache" / "indicators"))
     p.add_argument('--results_dir', type=str, default=str(default_project_dir / "results"))

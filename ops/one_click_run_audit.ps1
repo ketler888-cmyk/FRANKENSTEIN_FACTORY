@@ -15,7 +15,10 @@ function W([string]$p,[string]$t){
 function Zip-Folder([string]$Folder, [string]$ZipPath) {
   Add-Type -AssemblyName System.IO.Compression.FileSystem
   if (Test-Path -LiteralPath $ZipPath) { Remove-Item -LiteralPath $ZipPath -Force }
-  [System.IO.Compression.ZipFile]::CreateFromDirectory($Folder, $ZipPath)
+  # STOP_TRANSCRIPT_BEFORE_ZIP_PATCH_V1
+try { Stop-Transcript | Out-Null } catch {}
+Start-Sleep -Milliseconds 150
+[System.IO.Compression.ZipFile]::CreateFromDirectory($Folder, $ZipPath)
 }
 function Safe-Copy([string]$Src, [string]$Dst) {
   try {

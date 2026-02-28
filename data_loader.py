@@ -1,80 +1,14 @@
-# === FRANKEN_NORMALIZE_PAIR ===
-def _normalize_pair(pair: str) -> str:
-
-# === FRANKEN_COLMAP ===
-def _fr_colmap(df):
-    try:
-        cols = list(df.columns)
-    except Exception:
-        return df
-
-    norm = {c: str(c).strip() for c in cols}
-    low  = {c: norm[c].lower() for c in cols}
-
-    alias = {
-        "timestamp": ["timestamp","time","datetime","date","open_time","opentime","open time","t","ts"],
-        "open":      ["open","o","op","price_open","openprice"],
-        "high":      ["high","h","hi","price_high","highprice"],
-        "low":       ["low","l","lo","price_low","lowprice"],
-        "close":     ["close","c","cl","price_close","closeprice","last"],
-        "volume":    ["volume","vol","v","qty","quantity","base_volume","basevol","amount"],
-    }
-
-    rename = {}
-    taken = set()
-    for target, al in alias.items():
-        found = None
-        for a in al:
-            for c in cols:
-                if c in taken:
-                    continue
-                if low[c] == a:
-                    found = c
-                    break
-            if found is not None:
-                break
-        if found is not None and found != target:
-            rename[found] = target
-            taken.add(found)
-
-    if rename:
-        df = df.rename(columns=rename)
-
-    if "timestamp" in df.columns:
-        ts = df["timestamp"]
-        try:
-            if hasattr(ts, "dtype") and str(ts.dtype).startswith(("int","uint","float")):
-                mx = float(ts.dropna().iloc[0]) if len(ts.dropna()) else 0.0
-                unit = "ms" if mx > 1e11 else "s"
-                import pandas as pd
-                df["timestamp"] = pd.to_datetime(ts, unit=unit, utc=False, errors="coerce")
-            else:
-                import pandas as pd
-                df["timestamp"] = pd.to_datetime(ts, utc=False, errors="coerce")
-        except Exception:
-            pass
-
-    return df
-# === /FRANKEN_COLMAP ===
-
-    # Accept: BTCUSDT, BTC/USDT, BTC-USDT, btcusdt
-    if pair is None:
-        return pair
-    p = str(pair).strip().upper()
-    p = p.replace("/", "").replace("-", "").replace("_", "")
-    if p.startswith("XBT"):
-        p = "BTC" + p[3:]
-    return p
-
 # -*- coding: utf-8 -*-
-"""
+\""\""
 data_loader.py - Production loader for 1m OHLCV scalping data.
 
 STRICT RULES:
 - Load FULL datasets (no synthetic).
 - 1m timeframe. Gap is any delta > 60 seconds.
 - Supports CSV and Parquet. If both exist for a pair, Parquet is preferred.
-"""
+\""\""
+
+from __future__ import annotations
 
 import argparse
 import json
@@ -95,12 +29,67 @@ REQUIRED_COLUMNS = ["timestamp", "open", "high", "low", "close", "volume"]
 TIMEFRAME_SECONDS = 60
 GAP_THRESHOLD_SECONDS = 60  # strictly >60 sec is a gap
 
+
+def normalize_pair(pair: Any) -> str:
+    if pair is None:
+        return ""
+    p = str(pair).strip().upper()
+    p = p.replace("/", "").replace("-", "").replace("_", "")
+    if p.startswith("XBT"):
+        p = "BTC" + p[3:]
+    return p
+
+
+def _fr_colmap(df: pd.DataFrame) -> pd.DataFrame:
+    # Best-effort column normalization: maps common aliases to required columns.
+    try:
+        cols = list(df.columns)
+    except Exception:
+        return df
+
+    norm = {c: str(c).strip() for c in cols}
+    low = {c: norm[c].lower() for c in cols}
+
+    alias = {
+        "timestamp": ["timestamp", "time", "datetime", "date", "open_time", "opentime", "open time", "t", "ts"],
+        "open":      ["open", "o", "op", "price_open", "openprice"],
+        "high":      ["high", "h", "hi", "price_high", "highprice"],
+        "low":       ["low", "l", "lo", "price_low", "lowprice"],
+        "close":     ["close", "c", "cl", "price_close", "closeprice", "last"],
+        "volume":    ["volume", "vol", "v", "qty", "quantity", "base_volume", "basevol", "amount"],
+    }
+
+    rename = {}
+    taken = set()
+
+    for target, al in alias.items():
+        found = None
+        for a in al:
+            for c in cols:
+                if c in taken:
+                    continue
+                if low[c] == a:
+                    found = c
+                    break
+            if found is not None:
+                break
+        if found is not None and found != target:
+            rename[found] = target
+            taken.add(found)
+
+    if rename:
+        df = df.rename(columns=rename)
+
+    return df
+
+
 @dataclass(frozen=True)
 class GapExample:
     gap_start: str
     gap_end: str
     gap_seconds: int
     missing_bars: int
+
 
 class ScalpingDataLoader:
     def __init__(self, data_dir: Path):
@@ -111,12 +100,14 @@ class ScalpingDataLoader:
         self.report: Dict[str, Any] = {}
 
     def discover_files(self, pairs: Optional[List[str]] = None) -> List[Path]:
-        csvs  = sorted(self.data_dir.glob("*_1m.csv"))
+        csvs = sorted(self.data_dir.glob("*_1m.csv"))
         parqs = sorted(self.data_dir.glob("*_1m.parquet"))
         all_files = sorted(list(set(csvs + parqs)), key=lambda p: p.name)
 
         if not all_files:
-            raise FileNotFoundError(f"No files matching '*_1m.csv' or '*_1m.parquet' found in {self.data_dir}")
+            raise FileNotFoundError(
+                f"No files matching '*_1m.csv' or '*_1m.parquet' found in {self.data_dir}"
+            )
 
         if not pairs:
             # Prefer parquet duplicates: if both exist, keep parquet
@@ -131,8 +122,7 @@ class ScalpingDataLoader:
 
         out: List[Path] = []
         for p in pairs:
-            pp = p.stem if hasattr(p, "stem") else str(p)
-            pp = pp.replace("_1m", "")
+            pp = str(p).replace("_1m", "")
             pq = self.data_dir / f"{pp}_1m.parquet"
             cs = self.data_dir / f"{pp}_1m.csv"
             if pq.exists():
@@ -182,7 +172,7 @@ class ScalpingDataLoader:
     def _load_csv(self, file_path: Path) -> pd.DataFrame:
         file_name = file_path.name
         df = pd.read_csv(file_path, engine="c")
-    df = _fr_colmap(df)
+        df = _fr_colmap(df)
         df = self._enforce_required_columns(df, file_name)
         df["timestamp"] = self._parse_timestamp_series(df["timestamp"])
         nat_count = int(df["timestamp"].isna().sum())
@@ -198,7 +188,7 @@ class ScalpingDataLoader:
     def _load_parquet(self, file_path: Path) -> pd.DataFrame:
         file_name = file_path.name
         df = pd.read_parquet(file_path)
-    df = _fr_colmap(df)
+        df = _fr_colmap(df)
         df = self._enforce_required_columns(df, file_name)
         df["timestamp"] = self._parse_timestamp_series(df["timestamp"])
         nat_count = int(df["timestamp"].isna().sum())
@@ -295,13 +285,14 @@ class ScalpingDataLoader:
     def get_report(self) -> Dict[str, Any]:
         return self.report
 
+
 def _pick_default_data_dir(root: Path) -> Path:
-    # project-local preferences
     for d in ("SCALPING_DATA_PARQUET", "SCALPING_DATA_RAW", "SCALPING_DATA"):
         p = root / d
         if p.exists():
             return p
     return root / "SCALPING_DATA"
+
 
 def main() -> int:
     root = Path(__file__).resolve().parent
@@ -327,6 +318,7 @@ def main() -> int:
         print(report_json)
 
     return 0 if report.get("_summary", {}).get("total_pairs_loaded", 0) > 0 else 1
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
