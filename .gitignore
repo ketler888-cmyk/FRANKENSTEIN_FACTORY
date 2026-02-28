@@ -76,3 +76,9 @@ Thumbs.db
 desktop.ini
 .DS_Store
 # ========================================================================
+SCALPING_DATA/
+SCALPING_DATA_RAW/
+SCALPING_DATA_PARQUET/
+results/
+results_ga/
+metrics/
