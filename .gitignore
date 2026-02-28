@@ -1,19 +1,24 @@
-# ================= FRANKEN | CODE-ONLY MIRROR =================
+# ================= FRANKEN | CODE-ONLY MIRROR (CANONICAL) =================
+# venv / python cache
 .venv/
 venv/
 __pycache__/
 *.pyc
 *.pyo
 
-# big data / results / caches
+# big data / results / caches (NEVER COMMIT)
 SCALPING_DATA*/
 SCALPING_DATA_PARQUET*/
 SCALPING_DATA_RAW*/
+cache/
+caches/
+logs/
 results*/
 results_ga*/
-cache/
-logs/
-*_cache/
+results_grid/
+parquet/
+csv/
+gene_pool/
 
 # datasets / binaries
 *.parquet
@@ -23,6 +28,7 @@ logs/
 *.db
 *.sqlite
 *.sqlite3
+*.pyd
 
 # runtime artifacts
 *.log
@@ -36,7 +42,7 @@ ops/STOP_FACTORY
 *.7z
 *.rar
 
-# diagnostics / inventories
+# diagnostics / inventories / temp
 *_before.txt
 *_inventory*.txt
 *_diag_*.txt
@@ -47,148 +53,26 @@ pairs_detected*.txt
 data_map_*.txt
 status_before.txt
 stderr_before.txt
-
-# backups / audits / sources
-_BACKUPS_MIRROR/
-BACKUPS_MIRROR/
-_sources/
-AUDIT_*/
-_AUDIT_*/
-
-# junk safety (never mirror)
+_GIT_DIAG_*.txt
 *.BROKEN_20??????_??????
 
-# OS noise
-Thumbs.db
-desktop.ini
-.DS_Store
-
-# ---- EXTRA LOCKS (added) ----
-*_autosync_ping.txt
-# ignore all .txt by default (we keep only requirements*.txt tracked)
-*.txt
-!requirements*.txt
-
-# ================= FRANKEN | MIRROR LOCK (AUTO) =================
-# data / caches / artifacts (NEVER TRACK)
-SCALPING_DATA*/
-cache/
-caches/
-logs/
-results/
-results_ga/
-results_grid/
-parquet/
-csv/
-*.parquet
-*.csv
-*.tsv
-*.duckdb
-*.db
-*.sqlite
-*.sqlite3
-
-# runtime artifacts
-*.log
-*.pid
-ops/*.pid
-ops/heartbeat.json
-ops/STOP_FACTORY
-
-# archives / checkpoints
-*.zip
-*.7z
-*.rar
-
-# diagnostics / inventories
-*_before.txt
-*_inventory*.txt
-*_diag_*.txt
-ohlcv_find*.txt
-ohlcv_sniff*.txt
-ohlcv_sniff*.json
-pairs_detected*.txt
-data_map_*.txt
-status_before.txt
-stderr_before.txt
-_GIT_DIAG_*.txt
-
-# backups / audits / sources
+# backups / audits / sources (local only)
 _BACKUPS_MIRROR/
 BACKUPS_MIRROR/
 _sources/
 AUDIT_*/
 _AUDIT_*/
-
-# OS noise
-Thumbs.db
-desktop.ini
-.DS_Store
-
-# txt policy: ignore all .txt except requirements*.txt
-*.txt
-!requirements*.txt
-# ================================================================
-
-# ================= FRANKEN MIRROR LOCK (managed) =================
-# data / caches / results
-SCALPING_DATA/
-SCALPING_DATA_*/
-cache/
-caches/
-logs/
-results/
-results_*/
-results_ga/
-parquet/
-*.parquet
-*.csv
-*.tsv
-*.duckdb
-*.db
-*.sqlite
-*.sqlite3
-
-# runtime artifacts
-*.log
-*.pid
-ops/*.pid
-ops/heartbeat.json
-ops/STOP_FACTORY
-
-# archives / checkpoints
-*.zip
-*.7z
-*.rar
-
-# diagnostics / inventories
-*_before.txt
-*_inventory*.txt
-*_diag_*.txt
-ohlcv_find*.txt
-ohlcv_sniff*.txt
-ohlcv_sniff*.json
-pairs_detected*.txt
-data_map_*.txt
-status_before.txt
-stderr_before.txt
-_GIT_DIAG_*.txt
-
-# protect: ignore ALL .txt by default (allow only requirements*.txt)
-*.txt
-!requirements*.txt
-
-# kill known patcher artifacts in ops
-ops/patch_pairs*.py
-
-# OS noise
-Thumbs.db
-desktop.ini
-.DS_Store
-# ================= END FRANKEN MIRROR LOCK =================
-*.pyd
-metrics/
-gene_pool/
 _AUDIT*/
 _BACKUPS*/
 *.bak_*
+*.backup*
+
+# TXT policy: ignore all .txt except requirements*.txt
+*.txt
+!requirements*.txt
+
+# OS noise
+Thumbs.db
+desktop.ini
+.DS_Store
+# ========================================================================

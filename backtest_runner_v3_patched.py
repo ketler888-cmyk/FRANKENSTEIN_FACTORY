@@ -1,4 +1,4 @@
-﻿"""
+"""
 backtest_runner_v3.py - Production walk-forward backtest engine with dynamic ATR-based TP/SL
 Reads indicator cache from Parquet OR NPZ.
 """
@@ -1156,6 +1156,14 @@ def main():
     p.add_argument('--slip_buffer_usdt', type=float, default=0.05)
     p.add_argument('--dd_limit', type=float, default=0.10)
     p.add_argument('--min_trades', type=int, default=30)
+    # GA numeric params (used with --no_optimize; passed by RunnerBridge)
+    p.add_argument('--k_tp', type=float, default=None)
+    p.add_argument('--k_sl', type=float, default=None)
+    p.add_argument('--tp_min_usdt', type=float, default=None)
+    p.add_argument('--sl_min_usdt', type=float, default=None)
+    p.add_argument('--target_profit_min_usdt', type=float, default=None)
+    p.add_argument('--max_hold_bars', type=int, default=None)
+    p.add_argument('--min_atr_multiplier', type=float, default=None)
     # Entry-logic tuning (used with --no_optimize; does not affect GA/optimize)
     p.add_argument('--entry_variant', type=int, default=None, help='0=legacy mean-reversion, 1=breakout, 2=hybrid')
     p.add_argument('--rsi_buy', type=float, default=None, help='RSI threshold for mean-reversion entry')
@@ -1201,6 +1209,13 @@ def main():
         'use_bb_filter': getattr(args, 'use_bb_filter', None),
         'breakout_lookback': getattr(args, 'breakout_lookback', None),
         'breakout_atr_k': getattr(args, 'breakout_atr_k', None),
+        'k_tp': getattr(args, 'k_tp', None),
+        'k_sl': getattr(args, 'k_sl', None),
+        'tp_min_usdt': getattr(args, 'tp_min_usdt', None),
+        'sl_min_usdt': getattr(args, 'sl_min_usdt', None),
+        'target_profit_min_usdt': getattr(args, 'target_profit_min_usdt', None),
+        'max_hold_bars': getattr(args, 'max_hold_bars', None),
+        'min_atr_multiplier': getattr(args, 'min_atr_multiplier', None),
     }
 
     report = runner.run_all(specific_pairs=args.pairs, optimize=(not args.no_optimize))
