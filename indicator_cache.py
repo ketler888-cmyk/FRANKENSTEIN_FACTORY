@@ -1,494 +1,95 @@
-"""
-indicator_cache.py - Production module for calculating and caching TA-Lib indicators for scalping data (WITH ATR)
-Cache formats: Parquet (pyarrow) OR NPZ fallback.
-"""
+﻿from __future__ import annotations
 
+import os
 import json
-import argparse
 import hashlib
-import time
-import logging
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
-from datetime import datetime
-import traceback
+from typing import Dict, Any, Optional
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
-# Configure logging early
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger(__name__)
-
-# Try TA-Lib
+# --- Indicator backend selection ---
+TA_LIB_AVAILABLE = False
+TA_BACKEND = "none"
 try:
-try:
-    import talib  # type: ignore
-    HAVE_TALIB = True
+    import talib  # TA-Lib Python wrapper
+    TA_LIB_AVAILABLE = True
+    TA_BACKEND = "talib"
 except Exception:
     talib = None
-    HAVE_TALIB = False
-    TA_LIB_AVAILABLE = True
-except ImportError as e:
-    logger.error(f"TA-Lib not available: {str(e)}")
-    logger.error("Install: pip install TA-Lib")
-    TA_LIB_AVAILABLE = False
 
-# Optional pyarrow
+# Optional fallback: pure-python indicators (MIT) -> pip install ta
+TA_FALLBACK_AVAILABLE = False
 try:
-    import pyarrow  # noqa: F401
-    import pyarrow.parquet  # noqa: F401
-    PARQUET_AVAILABLE = True
-except ImportError:
-    PARQUET_AVAILABLE = False
+    from ta.volatility import AverageTrueRange
+    from ta.trend import CCIIndicator
+    TA_FALLBACK_AVAILABLE = True
+    if TA_BACKEND == "none":
+        TA_BACKEND = "ta"
+except Exception:
+    AverageTrueRange = None
+    CCIIndicator = None
 
-# Import loader
-try:
-    from data_loader import ScalpingDataLoader
-    DATA_LOADER_AVAILABLE = True
-except ImportError as e:
-    logger.error(f"Cannot import ScalpingDataLoader: {str(e)}")
-    DATA_LOADER_AVAILABLE = False
+def _safe_mkdir(p: Path) -> None:
+    p.mkdir(parents=True, exist_ok=True)
 
+def _hash_key(obj: Any) -> str:
+    raw = json.dumps(obj, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
 
+@dataclass
 class IndicatorCache:
-    """Production indicator calculator and cache manager"""
+    cache_dir: Path
 
-    INDICATOR_PARAMS = {
-        'rsi': {'period': 14},
-        'ema': {'periods': [9, 21, 50, 200]},
-        'macd': {'fastperiod': 12, 'slowperiod': 26, 'signalperiod': 9},
-        'bbands': {'timeperiod': 20, 'nbdevup': 2, 'nbdevdn': 2, 'matype': 0},
-        'atr': {'period': 14}
-    }
+    def __post_init__(self) -> None:
+        self.cache_dir = Path(self.cache_dir)
+        _safe_mkdir(self.cache_dir)
 
-    def __init__(self, data_dir: Path, cache_dir: Path):
-        if not TA_LIB_AVAILABLE:
-            raise ImportError("TA-Lib is not available. Install with: pip install TA-Lib")
-        if not DATA_LOADER_AVAILABLE:
-            raise ImportError("data_loader module is not available")
+    def _path(self, key: str) -> Path:
+        return self.cache_dir / f"{key}.parquet"
 
-        self.data_dir = Path(data_dir)
-        self.cache_dir = Path(cache_dir)
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+    def get_or_compute_atr_cci(self, df: pd.DataFrame, atr_len: int, cci_len: int) -> pd.DataFrame:
+        \"\"\"Возвращает df с колонками atr, cci. Кэширует по (len(df), last_ts, params).\"\"\"
+        if "timestamp" in df.columns:
+            last_ts = str(df["timestamp"].iloc[-1])
+        else:
+            last_ts = "na"
 
-        self.results: Dict[str, pd.DataFrame] = {}
-        self.report: Dict[str, Any] = {'pairs': {}}
-        self.start_time = time.time()
+        key = _hash_key({"n": int(len(df)), "last_ts": last_ts, "atr_len": int(atr_len), "cci_len": int(cci_len), "backend": TA_BACKEND})
+        out_path = self._path(key)
 
-    def calculate_checksum(self, df: pd.DataFrame, source_file: Optional[Path] = None) -> str:
-        if source_file and source_file.exists():
-            with open(source_file, 'rb') as f:
-                file_hash = hashlib.sha256()
-                for chunk in iter(lambda: f.read(8192), b''):
-                    file_hash.update(chunk)
-            return file_hash.hexdigest()
-        # fallback: timestamp+close
-        data_to_hash = pd.concat([
-            df['timestamp'].astype(str),
-            df['close'].round(8).astype(str)
-        ], axis=0).to_string().encode('utf-8')
-        return hashlib.sha256(data_to_hash).hexdigest()
-
-    def find_source_file(self, pair: str) -> Optional[Path]:
-        patterns = [f"{pair}_1m.csv", f"{pair.upper()}_1m.csv", f"{pair.lower()}_1m.csv"]
-        for pattern in patterns:
-            for fp in self.data_dir.glob(pattern):
-                if fp.exists():
-                    return fp
-        any_match = list(self.data_dir.glob(f"*{pair}*_1m.csv"))
-        return any_match[0] if any_match else None
-
-    def calculate_indicators(self, df: pd.DataFrame, pair: str) -> pd.DataFrame:
-        logger.info(f"Calculating indicators for {pair} ({len(df)} bars)")
-
-        high_prices = df['high'].values.astype(np.float64)
-        low_prices = df['low'].values.astype(np.float64)
-        close_prices = df['close'].values.astype(np.float64)
-
-        out = pd.DataFrame(index=df.index)
-        out['timestamp'] = df['timestamp']
-
-        # RSI
-        try:
-            out['rsi_14'] = talib.RSI(close_prices, timeperiod=self.INDICATOR_PARAMS['rsi']['period'])
-        except Exception as e:
-            logger.error(f"{pair}: RSI failed: {e}")
-            out['rsi_14'] = np.nan
-
-        # EMA
-        for period in self.INDICATOR_PARAMS['ema']['periods']:
+        if out_path.exists():
             try:
-                out[f'ema_{period}'] = talib.EMA(close_prices, timeperiod=period)
-            except Exception as e:
-                logger.error(f"{pair}: EMA({period}) failed: {e}")
-                out[f'ema_{period}'] = np.nan
+                cached = pd.read_parquet(out_path)
+                return cached
+            except Exception:
+                # повреждённый кэш -> пересчёт
+                pass
 
-        # MACD
-        try:
-            macd, sig, hist = talib.MACD(
-                close_prices,
-                fastperiod=self.INDICATOR_PARAMS['macd']['fastperiod'],
-                slowperiod=self.INDICATOR_PARAMS['macd']['slowperiod'],
-                signalperiod=self.INDICATOR_PARAMS['macd']['signalperiod']
-            )
-            out['macd'] = macd
-            out['macdsignal'] = sig
-            out['macdhist'] = hist
-        except Exception as e:
-            logger.error(f"{pair}: MACD failed: {e}")
-            out['macd'] = np.nan
-            out['macdsignal'] = np.nan
-            out['macdhist'] = np.nan
+        out = df.copy()
 
-        # BBANDS
-        try:
-            up, mid, low = talib.BBANDS(
-                close_prices,
-                timeperiod=self.INDICATOR_PARAMS['bbands']['timeperiod'],
-                nbdevup=self.INDICATOR_PARAMS['bbands']['nbdevup'],
-                nbdevdn=self.INDICATOR_PARAMS['bbands']['nbdevdn'],
-                matype=self.INDICATOR_PARAMS['bbands']['matype']
-            )
-            out['bb_upper'] = up
-            out['bb_middle'] = mid
-            out['bb_lower'] = low
-        except Exception as e:
-            logger.error(f"{pair}: BBANDS failed: {e}")
-            out['bb_upper'] = np.nan
-            out['bb_middle'] = np.nan
-            out['bb_lower'] = np.nan
+        close = out["close"].astype(float).to_numpy()
+        high  = out["high"].astype(float).to_numpy()
+        low   = out["low"].astype(float).to_numpy()
 
-        # ATR(14)
-        try:
-            out['atr_14'] = talib.ATR(high_prices, low_prices, close_prices,
-                                      timeperiod=self.INDICATOR_PARAMS['atr']['period'])
-            logger.info(f"{pair}: ATR(14) calculated successfully")
-        except Exception as e:
-            logger.error(f"{pair}: ATR failed: {e}")
-            out['atr_14'] = np.nan
-
-        cols = ['timestamp'] + [c for c in out.columns if c != 'timestamp']
-        return out[cols]
-
-    def validate_indicator_data(self, df: pd.DataFrame, ind: pd.DataFrame, pair: str) -> bool:
-        errors = []
-        if len(df) != len(ind):
-            errors.append(f"Length mismatch OHLC={len(df)} ind={len(ind)}")
-        if 'timestamp' not in df.columns or 'timestamp' not in ind.columns:
-            errors.append("timestamp column missing")
-        if errors:
-            for e in errors:
-                logger.error(f"{pair}: {e}")
-            return False
-
-        if not df['timestamp'].equals(ind['timestamp']):
-            if not (df['timestamp'].values == ind['timestamp'].values).all():
-                logger.error(f"{pair}: Timestamp mismatch")
-                return False
-
-        required = [
-            'rsi_14','ema_9','ema_21','ema_50','ema_200',
-            'macd','macdsignal','macdhist',
-            'bb_upper','bb_middle','bb_lower','atr_14'
-        ]
-        for c in required:
-            if c not in ind.columns:
-                logger.error(f"{pair}: Missing required indicator {c}")
-                return False
-
-        if ind['atr_14'].isna().all():
-            logger.error(f"{pair}: atr_14 is all NaN (ATR calc failed)")
-            return False
-
-        logger.info(f"{pair}: Validation passed")
-        return True
-
-    def get_cache_paths(self, pair: str) -> Tuple[Path, Path, Path]:
-        parquet_file = self.cache_dir / f"{pair}_indicators.parquet"
-        npz_file = self.cache_dir / f"{pair}_indicators.npz"
-        meta_file = self.cache_dir / f"{pair}_meta.json"
-        return parquet_file, npz_file, meta_file
-
-    def cache_exists(self, pair: str) -> bool:
-        parquet_file, npz_file, meta_file = self.get_cache_paths(pair)
-        if not meta_file.exists():
-            return False
-        return parquet_file.exists() or npz_file.exists()
-
-    def load_cache_meta(self, pair: str) -> Optional[Dict]:
-        _, _, meta_file = self.get_cache_paths(pair)
-        if not meta_file.exists():
-            return None
-        try:
-            with open(meta_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error(f"{pair}: meta load failed: {e}")
-            return None
-
-    def is_cache_valid(self, pair: str, current_checksum: str, force: bool = False) -> bool:
-        if force:
-            logger.info(f"{pair}: Force recalculation")
-            return False
-        if not self.cache_exists(pair):
-            logger.info(f"{pair}: Cache not found")
-            return False
-        meta = self.load_cache_meta(pair)
-        if not meta:
-            logger.info(f"{pair}: Meta unreadable")
-            return False
-        if meta.get('checksum') != current_checksum:
-            logger.info(f"{pair}: Checksum mismatch")
-            return False
-        if meta.get('indicator_params', {}) != self.INDICATOR_PARAMS:
-            logger.info(f"{pair}: Indicator params changed (ATR/params), invalidating cache")
-            return False
-        logger.info(f"{pair}: Cache is valid")
-        return True
-
-    def save_to_cache(self, ind: pd.DataFrame, pair: str, original_df: pd.DataFrame,
-                      source_file: Optional[Path] = None) -> bool:
-        parquet_file, npz_file, meta_file = self.get_cache_paths(pair)
-        try:
-            checksum = self.calculate_checksum(original_df, source_file)
-
-            meta = {
-                'pair': pair,
-                'rows': int(len(ind)),
-                'date_range': {
-                    'start': ind['timestamp'].min().isoformat(),
-                    'end': ind['timestamp'].max().isoformat()
-                },
-                'indicator_params': self.INDICATOR_PARAMS,
-                'columns': ind.columns.tolist(),
-                'created_at': datetime.now().isoformat(),
-                'checksum': checksum,
-                'source_file': str(source_file) if source_file else None,
-                'version': '2.0'
-            }
-
-            # IMPORTANT FIX: always initialize this local flag
-            PARQUET_AVAILABLE_LOCAL = False
-
-            if PARQUET_AVAILABLE:
-                try:
-                    ind.to_parquet(parquet_file, engine='pyarrow', compression='snappy')
-                    meta['format'] = 'parquet'
-                    PARQUET_AVAILABLE_LOCAL = True
-                    logger.info(f"{pair}: Indicators saved to Parquet: {parquet_file}")
-                except Exception as e:
-                    logger.warning(f"{pair}: Parquet save failed ({e}), fallback to NPZ")
-                    PARQUET_AVAILABLE_LOCAL = False
-
-            if (not PARQUET_AVAILABLE) or (not PARQUET_AVAILABLE_LOCAL):
-                np_data = {}
-                for col in ind.columns:
-                    if col == 'timestamp':
-                        # Robust conversion for datetime64[ns]
-                        np_data['timestamp_ns'] = ind[col].view('int64').values
-                    else:
-                        np_data[col] = ind[col].values
-                np.savez_compressed(npz_file, **np_data)
-                meta['format'] = 'npz'
-                logger.info(f"{pair}: Indicators saved to NPZ: {npz_file}")
-                if parquet_file.exists():
-                    try:
-                        parquet_file.unlink()
-                    except Exception:
-                        pass
-
-            with open(meta_file, 'w', encoding='utf-8') as f:
-                json.dump(meta, f, indent=2, default=str)
-
-            logger.info(f"{pair}: Metadata saved to {meta_file}")
-            return True
-
-        except Exception as e:
-            logger.error(f"{pair}: save_to_cache failed: {e}")
-            return False
-
-    def load_from_cache(self, pair: str) -> Optional[pd.DataFrame]:
-        parquet_file, npz_file, _ = self.get_cache_paths(pair)
-        meta = self.load_cache_meta(pair)
-        if not meta:
-            return None
-
-        fmt = meta.get('format', 'parquet')
-
-        # fallback if meta is wrong
-        if fmt == 'parquet' and (not parquet_file.exists()) and npz_file.exists():
-            fmt = 'npz'
-        if fmt == 'npz' and (not npz_file.exists()) and parquet_file.exists():
-            fmt = 'parquet'
+        if TA_LIB_AVAILABLE and talib is not None:
+            out["atr"] = talib.ATR(high, low, close, timeperiod=int(atr_len))
+            out["cci"] = talib.CCI(high, low, close, timeperiod=int(cci_len))
+        elif TA_FALLBACK_AVAILABLE and AverageTrueRange is not None and CCIIndicator is not None:
+            out["atr"] = AverageTrueRange(high=out["high"], low=out["low"], close=out["close"], window=int(atr_len)).average_true_range()
+            out["cci"] = CCIIndicator(high=out["high"], low=out["low"], close=out["close"], window=int(cci_len)).cci()
+        else:
+            raise RuntimeError("Нет доступного бэкенда индикаторов. Установите TA-Lib или 'ta'.")
 
         try:
-            if fmt == 'parquet' and parquet_file.exists():
-                df = pd.read_parquet(parquet_file)
-                return df
+            out.to_parquet(out_path, index=False)
+        except Exception:
+            # кэш опционален
+            pass
+        return out
 
-            if fmt == 'npz' and npz_file.exists():
-                data = np.load(npz_file, allow_pickle=True)
-                df_dict = {}
-                if 'timestamp_ns' in data:
-                    df_dict['timestamp'] = pd.to_datetime(data['timestamp_ns'])
-                cols = meta.get('columns', [])
-                for c in cols:
-                    if c != 'timestamp' and c in data:
-                        df_dict[c] = data[c]
-                return pd.DataFrame(df_dict)
+def default_cache_dir() -> Path:
+    return Path(__file__).resolve().parent / "cache" / "indicators"
 
-            return None
-
-        except Exception as e:
-            logger.error(f"{pair}: load_from_cache failed: {e}")
-            return None
-
-    def process_pair(self, pair: str, df: pd.DataFrame, force: bool = False) -> Dict[str, Any]:
-        t0 = time.time()
-        parquet_file, npz_file, meta_file = self.get_cache_paths(pair)
-        source_file = self.find_source_file(pair)
-
-        try:
-            current_checksum = self.calculate_checksum(df, source_file)
-
-            if self.is_cache_valid(pair, current_checksum, force):
-                ind = self.load_from_cache(pair)
-                if ind is None:
-                    logger.warning(f"{pair}: Cache corrupted -> recompute")
-                    ind = self.calculate_indicators(df, pair)
-                    if self.validate_indicator_data(df, ind, pair):
-                        self.save_to_cache(ind, pair, df, source_file)
-                    self.results[pair] = ind
-                    status = "recomputed"
-                else:
-                    self.results[pair] = ind
-                    status = "cached"
-            else:
-                ind = self.calculate_indicators(df, pair)
-                if not self.validate_indicator_data(df, ind, pair):
-                    raise ValueError(f"Indicator validation failed for {pair}")
-                if not self.save_to_cache(ind, pair, df, source_file):
-                    raise ValueError(f"Failed to save cache for {pair}")
-                self.results[pair] = ind
-                status = "recomputed"
-
-            dt = round(time.time() - t0, 2)
-            rep = {
-                'status': status,
-                'rows': int(len(df)),
-                'date_range': {
-                    'start': df['timestamp'].min().isoformat(),
-                    'end': df['timestamp'].max().isoformat()
-                },
-                'indicators_calculated': [c for c in self.results[pair].columns if c != 'timestamp'],
-                'cache_format': 'parquet' if parquet_file.exists() else ('npz' if npz_file.exists() else None),
-                'cache_file': str(parquet_file) if parquet_file.exists() else (str(npz_file) if npz_file.exists() else None),
-                'meta_file': str(meta_file) if meta_file.exists() else None,
-                'processing_time_seconds': dt,
-                'checksum': current_checksum,
-                'timestamp': datetime.now().isoformat()
-            }
-            logger.info(f"{pair}: {status.upper()} ({len(df)} bars, {dt}s)")
-            return rep
-
-        except Exception as e:
-            logger.error(f"{pair}: process_pair error: {e}")
-            logger.debug(traceback.format_exc())
-            return {'status': 'error', 'error': str(e), 'rows': int(len(df)), 'timestamp': datetime.now().isoformat()}
-
-    def process_all(self, specific_pairs: Optional[List[str]] = None, force: bool = False) -> Dict[str, pd.DataFrame]:
-        logger.info(f"Starting indicator calculation (force={force})")
-        logger.info(f"Parquet available: {PARQUET_AVAILABLE}")
-
-        loader = ScalpingDataLoader(self.data_dir)
-        data = loader.load_all(specific_pairs)
-
-        if not data:
-            logger.error("No data loaded")
-            return {}
-
-        for pair, df in data.items():
-            self.report['pairs'][pair] = self.process_pair(pair, df, force)
-
-        total_time = round(time.time() - self.start_time, 2)
-
-        successful = sum(1 for r in self.report['pairs'].values() if r.get('status') in ['cached', 'recomputed'])
-        cached = sum(1 for r in self.report['pairs'].values() if r.get('status') == 'cached')
-        recomputed = sum(1 for r in self.report['pairs'].values() if r.get('status') == 'recomputed')
-        errors = sum(1 for r in self.report['pairs'].values() if r.get('status') == 'error')
-
-        parquet_count = sum(1 for r in self.report['pairs'].values() if r.get('cache_format') == 'parquet')
-        npz_count = sum(1 for r in self.report['pairs'].values() if r.get('cache_format') == 'npz')
-
-        self.report['summary'] = {
-            'total_pairs_processed': int(len(self.report['pairs'])),
-            'successful': int(successful),
-            'cached': int(cached),
-            'recomputed': int(recomputed),
-            'errors': int(errors),
-            'parquet_files': int(parquet_count),
-            'npz_files': int(npz_count),
-            'total_time_seconds': total_time,
-            'average_time_per_pair': round(total_time / max(1, len(self.report['pairs'])), 2),
-            'cache_directory': str(self.cache_dir),
-            'data_directory': str(self.data_dir),
-            'completion_time': datetime.now().isoformat(),
-            'ta_lib_version': getattr(talib, "__version__", "unknown") if TA_LIB_AVAILABLE else "unavailable",
-            'parquet_available': PARQUET_AVAILABLE,
-            'indicators_included': list(self.INDICATOR_PARAMS.keys())
-        }
-
-        logger.info(f"Processing complete: {successful} ok, {errors} errors, parquet={parquet_count}, npz={npz_count}, time={total_time}s")
-        return self.results
-
-    def get_report(self) -> Dict[str, Any]:
-        return self.report
-
-
-def main():
-    parser = argparse.ArgumentParser(description='Calculate and cache TA-Lib indicators for scalping data (WITH ATR)')
-    default_project_dir = Path(r"C:\Users\user\Desktop\Ð¤Ñ€Ð°Ð½ÐºÐ¸Ð½ÑˆÑ‚ÑÐ¹Ð½")
-    default_data_dir = default_project_dir / "SCALPING_DATA"
-    default_cache_dir = default_project_dir / "cache" / "indicators"
-
-    parser.add_argument('--data_dir', type=str, default=str(default_data_dir))
-    parser.add_argument('--cache_dir', type=str, default=str(default_cache_dir))
-    parser.add_argument('--pairs', type=str, nargs='+')
-    parser.add_argument('--force', action='store_true')
-    parser.add_argument('--verbose', action='store_true')
-    parser.add_argument('--output', type=str, help='Output JSON report (optional)')
-
-    args = parser.parse_args()
-
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
-        logger.setLevel(logging.DEBUG)
-
-    if not TA_LIB_AVAILABLE:
-        print(json.dumps({'error': 'TA-Lib is not available', 'solution': 'pip install TA-Lib'}, indent=2))
-        return 1
-    if not DATA_LOADER_AVAILABLE:
-        print(json.dumps({'error': 'data_loader module not available', 'solution': 'Put data_loader.py Ñ€ÑÐ´Ð¾Ð¼'}, indent=2))
-        return 1
-
-    cache = IndicatorCache(Path(args.data_dir), Path(args.cache_dir))
-    results = cache.process_all(specific_pairs=args.pairs, force=args.force)
-    report = cache.get_report()
-    report_json = json.dumps(report, indent=2, default=str)
-
-    if args.output:
-        Path(args.output).write_text(report_json, encoding='utf-8')
-        logger.info(f"Report saved to {args.output}")
-    else:
-        print(report_json)
-
-    return 0 if results else 1
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

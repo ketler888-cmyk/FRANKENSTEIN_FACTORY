@@ -1,0 +1,15 @@
+﻿# Minimal runtime deps for FRANKENSTEIN_FACTORY (Windows)
+numpy
+pandas
+polars
+pyarrow
+tqdm
+psutil
+
+# Indicators: prefer TA-Lib wheels on Windows, fallback to 'ta'
+TA-Lib
+ta
+
+# GA / metrics
+deap
+quantstats
