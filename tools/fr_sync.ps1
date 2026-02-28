@@ -1,63 +1,15 @@
+# ================= FRANKEN | fr_sync (PS 5.1) - RELIABLE GIT EXEC =================
 Set-StrictMode -Off
 $ErrorActionPreference = "Stop"
 
 $ROOT   = "C:\Users\user\Desktop\Франкинштэйн"
 $REMOTE = "origin"
-$BRANCH = "usage: git [-v | --version] [-h | --help] [-C <path>] [-c <name>=<value>]
-           [--exec-path[=<path>]] [--html-path] [--man-path] [--info-path]
-           [-p | --paginate | -P | --no-pager] [--no-replace-objects] [--no-lazy-fetch]
-           [--no-optional-locks] [--no-advice] [--bare] [--git-dir=<path>]
-           [--work-tree=<path>] [--namespace=<name>] [--config-env=<name>=<envvar>]
-           <command> [<args>]
-
-These are common Git commands used in various situations:
-
-start a working area (see also: git help tutorial)
-   clone      Clone a repository into a new directory
-   init       Create an empty Git repository or reinitialize an existing one
-
-work on the current change (see also: git help everyday)
-   add        Add file contents to the index
-   mv         Move or rename a file, a directory, or a symlink
-   restore    Restore working tree files
-   rm         Remove files from the working tree and from the index
-
-examine the history and state (see also: git help revisions)
-   bisect     Use binary search to find the commit that introduced a bug
-   diff       Show changes between commits, commit and working tree, etc
-   grep       Print lines matching a pattern
-   log        Show commit logs
-   show       Show various types of objects
-   status     Show the working tree status
-
-grow, mark and tweak your common history
-   backfill   Download missing objects in a partial clone
-   branch     List, create, or delete branches
-   commit     Record changes to the repository
-   merge      Join two or more development histories together
-   rebase     Reapply commits on top of another base tip
-   reset      Reset current HEAD to the specified state
-   switch     Switch branches
-   tag        Create, list, delete or verify a tag object signed with GPG
-
-collaborate (see also: git help workflows)
-   fetch      Download objects and refs from another repository
-   pull       Fetch from and integrate with another repository or a local branch
-   push       Update remote refs along with associated objects
-
-'git help -a' and 'git help -g' list available subcommands and some
-concept guides. See 'git help <command>' or 'git help <concept>'
-to read about a specific subcommand or concept.
-See 'git help git' for an overview of the system."
-$MSG    = ("sync: " + (Get-Date).ToString("yyyy-MM-dd HH:mm:ss"))
 
 function Info($m){ Write-Host "[INFO] $m" -ForegroundColor Cyan }
 function Ok($m){ Write-Host "[OK]   $m" -ForegroundColor Green }
 function Warn($m){ Write-Host "[WARN] $m" -ForegroundColor Yellow }
 function Fail($m){ Write-Host "[FAIL] $m" -ForegroundColor Red }
-
 function Assert-Path([string]$p,[string]$h){ if(-not(Test-Path -LiteralPath $p)){ throw "NOT FOUND: $p | $h" } }
-function Ensure-Dir([string]$p){ if(-not(Test-Path -LiteralPath $p)){ New-Item -ItemType Directory -Path $p -Force | Out-Null } }
 
 function Get-GitExe {
   $g = Get-Command git -ErrorAction SilentlyContinue
@@ -69,55 +21,72 @@ function Get-GitExe {
     "${env:ProgramFiles(x86)}\Git\bin\git.exe"
   )
   foreach($p in $candidates){ if(Test-Path -LiteralPath $p){ return $p } }
-  throw "git not found. Install Git for Windows and reopen PowerShell."
+  throw "git not found."
 }
 
-function Run-CmdCapture([string]$exe, [string]$args, [string]$cwd){
-  $tmp = Join-Path $env:TEMP ("fr_cmd_" + [Guid]::NewGuid().ToString("N") + ".txt")
-  $line = ""$exe" $args 1> "$tmp" 2>&1"
-  Push-Location $cwd
-  try { cmd.exe /d /c $line | Out-Null } finally { Pop-Location }
-  $txt = ""
-  if(Test-Path -LiteralPath $tmp){
-    $txt = Get-Content -LiteralPath $tmp -Raw -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
+function Invoke-Exe([string]$Exe, [string[]]$Args, [string]$Cwd){
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = $Exe
+  $psi.WorkingDirectory = $Cwd
+  $psi.UseShellExecute = $false
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError  = $true
+  $psi.CreateNoWindow = $true
+  foreach($a in $Args){ [void]$psi.ArgumentList.Add($a) }
+
+  $p = New-Object System.Diagnostics.Process
+  $p.StartInfo = $psi
+  [void]$p.Start()
+  $stdout = $p.StandardOutput.ReadToEnd()
+  $stderr = $p.StandardError.ReadToEnd()
+  $p.WaitForExit()
+  return [pscustomobject]@{ Code=$p.ExitCode; Text=(($stdout + "
+" + $stderr).Trim()) }
+}
+
+function Git([string[]]$Args){
+  $r = Invoke-Exe $GIT $Args $ROOT
+  return $r
+}
+function GitOrThrow([string[]]$Args, [string]$What){
+  $r = Git $Args
+  if($r.Code -ne 0){
+    Fail "$What FAILED (exit=$($r.Code))"
+    if($r.Text){ Write-Host $r.Text -ForegroundColor Red }
+    throw "$What failed"
   }
-  return $txt
+  return $r
 }
 
+Assert-Path $ROOT "ROOT missing"
+Assert-Path (Join-Path $ROOT ".git") ".git missing"
 $GIT = Get-GitExe
 
-Assert-Path $ROOT "Project root missing"
-Assert-Path (Join-Path $ROOT ".git") ".git missing"
+$branch = (GitOrThrow @("rev-parse","--abbrev-ref","HEAD") "rev-parse branch").Text.Trim()
+if(-not $branch){ $branch = "main" }
 
-Info ("git: " + (Run-CmdCapture $GIT "--version" $ROOT).Trim())
+Info "Fetch origin..."
+GitOrThrow @("fetch",$REMOTE,"--prune") "fetch --prune"
 
-Info "fetch --prune"
-Run-CmdCapture $GIT ("fetch " + $REMOTE + " --prune") $ROOT | Out-Null
+Info "Status:"
+Write-Host (GitOrThrow @("status","-sb") "status -sb").Text -ForegroundColor Gray
 
-Info "status -sb"
-Write-Host (Run-CmdCapture $GIT "status -sb" $ROOT) -ForegroundColor Gray
-
-Info "add -A"
-Run-CmdCapture $GIT "add -A" $ROOT | Out-Null
-
-$por = (Run-CmdCapture $GIT "status --porcelain" $ROOT).Trim()
-if(-not $por){
-  Warn "Nothing to commit."
+Info "Push..."
+$p = Git @("push",$REMOTE,$branch)
+if($p.Code -ne 0){
+  Warn "Normal push failed -> trying --force-with-lease ⚠️"
+  if($p.Text){ Write-Host $p.Text -ForegroundColor Yellow }
+  $p2 = GitOrThrow @("push","--force-with-lease",$REMOTE,$branch) "push --force-with-lease"
+  Ok "Push OK (force-with-lease) ✅"
 } else {
-  Info "commit"
-  Run-CmdCapture $GIT ("commit -m " + ""$MSG"") $ROOT | Out-Null
+  Ok "Push OK ✅"
 }
 
-Info "push"
-Write-Host (Run-CmdCapture $GIT ("push " + $REMOTE + " " + $BRANCH) $ROOT) -ForegroundColor Gray
-
-Info "verify HEAD == origin/main"
-Run-CmdCapture $GIT ("fetch " + $REMOTE + " " + $BRANCH) $ROOT | Out-Null
-$head = (Run-CmdCapture $GIT "rev-parse HEAD" $ROOT).Trim()
-$up   = (Run-CmdCapture $GIT ("rev-parse " + $REMOTE + "/" + $BRANCH) $ROOT).Trim()
-if($head -ne $up){
-  Fail "MIRROR MISMATCH"
-  throw "Mirror mismatch: HEAD != $REMOTE/$BRANCH"
-}
-Ok "MIRROR PERFECT ✅  (HEAD == origin/main)"
+Info "Verify HEAD == origin/$branch"
+GitOrThrow @("fetch",$REMOTE,$branch) "fetch branch"
+$head = (GitOrThrow @("rev-parse","HEAD") "rev-parse HEAD").Text.Trim()
+$up   = (GitOrThrow @("rev-parse",("$REMOTE/$branch")) "rev-parse upstream").Text.Trim()
+if($head -ne $up){ throw "MIRROR FAIL: HEAD != $REMOTE/$branch
+HEAD=$head
+UP  =$up" }
+Ok "Mirror synced ✅"

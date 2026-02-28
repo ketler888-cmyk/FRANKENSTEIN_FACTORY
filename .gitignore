@@ -1,20 +1,17 @@
-# ================= FRANKEN | CODE-ONLY MIRROR (LOCKED) =================
-
-# Python env
+# ================= FRANKEN | CODE-ONLY MIRROR =================
+# --- venv ---
 .venv/
 venv/
 __pycache__/
 *.pyc
 *.pyo
 
-# DATA (KEEP LOCAL ONLY)
-SCALPING_DATA/
-SCALPING_DATA_PARQUET/
-SCALPING_DATA_RAW/
-results/
-results_ga/
+# --- data / results / caches / logs ---
+SCALPING_DATA*/
+results*/
 cache/
 logs/
+*_cache/
 *.parquet
 *.csv
 *.tsv
@@ -22,29 +19,30 @@ logs/
 *.db
 *.sqlite
 *.sqlite3
-*.feather
-*.arrow
+*.log
 
-# Backups / audits / dumps (KEEP LOCAL ONLY)
-BACKUPS_MIRROR/
-_BACKUPS_MIRROR/
-AUDIT_*/
-АУДИТ_*/
-_AUDIT_*/
-ЗЕРКАЛЬНЫЕ_ОТЧЕТЫ/
-КОНТЕКСТНЫЙ_ЧАТ*/
-ЖЕЛЕЗНЫЙ_ЗОНД*/
+# --- archives / dumps ---
 *.zip
 *.7z
 *.rar
 
-# Runtime artifacts (KEEP LOCAL ONLY)
+# --- ops runtime ---
 ops/heartbeat.json
 ops/*.pid
 ops/STOP_FACTORY
 ops/vendor.lock.json
 
-# OS trash
+# --- backups/audits/sources ---
+_BACKUPS_MIRROR/
+BACKUPS_MIRROR/
+_sources/
+AUDIT_*/
+_AUDIT_*/
+ЗЕРКАЛЬНЫЕ_ОТЧЕТЫ/
+КОНТЕКСТНЫЙ_ЧАТ/
+ЖЕЛЕЗНЫЙ_ЗОНД/
+
+# --- OS junk ---
 Thumbs.db
 desktop.ini
 .DS_Store
