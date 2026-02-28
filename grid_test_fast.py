@@ -14,6 +14,60 @@ import pandas as pd
 
 from backtest_runner import BacktestRunner
 # === FRANKEN_ENV_KNOBS ===
+# === FRANKEN_SCREEN_PATCH (readers wrapper) ===
+import os
+try:
+    import math
+    import pandas as pd
+except Exception:
+    pd = None
+
+def _fr_screen_df(df):
+    try:
+        frac = float(os.environ.get("FR_SCREEN_FRAC","0") or "0")
+    except Exception:
+        frac = 0.0
+    if pd is None or df is None or frac <= 0:
+        return df
+    try:
+        n = int(len(df))
+        if n < 2000:
+            return df
+        target = int(max(500, min(n, math.floor(n * frac))))
+        if target >= n:
+            return df
+        step = int(math.ceil(n / float(target)))
+        # uniform thinning over full span, keeps chronology
+        out = df.iloc[::step].copy()
+        return out
+    except Exception:
+        return df
+
+def _fr_wrap_pandas_readers():
+    if pd is None:
+        return
+    if getattr(pd, "_fr_screen_wrapped", False):
+        return
+    try:
+        _orig_rp = pd.read_parquet
+        _orig_rc = pd.read_csv
+
+        def _rp(*args, **kwargs):
+            df = _orig_rp(*args, **kwargs)
+            return _fr_screen_df(df)
+
+        def _rc(*args, **kwargs):
+            df = _orig_rc(*args, **kwargs)
+            return _fr_screen_df(df)
+
+        pd.read_parquet = _rp
+        pd.read_csv = _rc
+        pd._fr_screen_wrapped = True
+    except Exception:
+        pass
+
+_fr_wrap_pandas_readers()
+# === /FRANKEN_SCREEN_PATCH ===
 import os
 FR_WORKERS = int(os.environ.get("FR_WORKERS", "0") or "0")
 FR_SCREEN_FRAC = float(os.environ.get("FR_SCREEN_FRAC", "0") or "0")
@@ -126,4 +180,5 @@ def main():
 
 if __name__=="__main__":
     main()
+
 
