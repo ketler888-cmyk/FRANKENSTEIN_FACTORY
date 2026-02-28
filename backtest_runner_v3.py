@@ -33,6 +33,13 @@ import numpy as np
 # Import loader
 try:
     from data_loader import ScalpingDataLoader
+# === FRANKEN_ENV_KNOBS ===
+import os
+FR_WORKERS = int(os.environ.get("FR_WORKERS", "0") or "0")
+FR_SCREEN_FRAC = float(os.environ.get("FR_SCREEN_FRAC", "0") or "0")
+FR_SCREEN_KEEP = int(os.environ.get("FR_SCREEN_KEEP", "0") or "0")
+# These are OPTIONAL knobs. If script doesn't use them yet, they are no-ops.
+
     DATA_LOADER_AVAILABLE = True
 except ImportError as e:
     logging.error(f"Cannot import ScalpingDataLoader: {str(e)}")
@@ -1273,6 +1280,7 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 
 
 

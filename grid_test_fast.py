@@ -13,6 +13,13 @@ from pathlib import Path
 import pandas as pd
 
 from backtest_runner import BacktestRunner
+# === FRANKEN_ENV_KNOBS ===
+import os
+FR_WORKERS = int(os.environ.get("FR_WORKERS", "0") or "0")
+FR_SCREEN_FRAC = float(os.environ.get("FR_SCREEN_FRAC", "0") or "0")
+FR_SCREEN_KEEP = int(os.environ.get("FR_SCREEN_KEEP", "0") or "0")
+# These are OPTIONAL knobs. If script doesn't use them yet, they are no-ops.
+
 
 def pick_data_dir(root: Path) -> Path:
     p = root / "SCALPING_DATA_PARQUET"
@@ -119,3 +126,4 @@ def main():
 
 if __name__=="__main__":
     main()
+
