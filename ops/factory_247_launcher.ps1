@@ -13,10 +13,19 @@ $LogsDir=Join-Path $ROOT 'logs'
 $StopFile=Join-Path $OpsDir 'STOP_FACTORY'
 $Heartbeat=Join-Path $OpsDir 'heartbeat.json'
 $RunLog=Join-Path $LogsDir 'factory_247_run.log'
+$LogDir247=Join-Path $LogsDir 'factory_247'
 
 if(!(Test-Path -LiteralPath $LogsDir)){ New-Item -ItemType Directory -Path $LogsDir -Force | Out-Null }
+if(!(Test-Path -LiteralPath $LogDir247)){ New-Item -ItemType Directory -Path $LogDir247 -Force | Out-Null }
+
+# UTF-8 safe console and stable perf defaults
 $env:PYTHONUTF8='1'
 $env:PYTHONIOENCODING='utf-8'
+# Reduce BLAS thread storms (stability for 24/7)
+$env:OMP_NUM_THREADS='1'
+$env:MKL_NUM_THREADS='1'
+$env:OPENBLAS_NUM_THREADS='1'
+$env:NUMEXPR_NUM_THREADS='1'
 
 function HB([string]$state, [string]$note){
   try{
@@ -32,12 +41,14 @@ while($true){
     Add-Content -LiteralPath $RunLog -Encoding UTF8 -Value ("
 [" + (Get-Date).ToString('s') + "] START mode=$MODE pairs=$PAIRS w=$WORKERS screen=$SCREEN_FRAC keep=$SCREEN_KEEP top=$TOP_N_DB")
     HB 'STARTING' 'boot'
+
     & $PY (Join-Path $ROOT 'ops\factory_247.py') --mode $MODE --pairs $PAIRS --workers $WORKERS --screen_frac $SCREEN_FRAC --screen_keep $SCREEN_KEEP --top_n_db $TOP_N_DB | Out-Null
+
     Add-Content -LiteralPath $RunLog -Encoding UTF8 -Value ("[" + (Get-Date).ToString('s') + "] EXIT normal")
     HB 'EXIT_NORMAL' 'factory finished'
     Start-Sleep -Seconds 3
   } catch {
-    Add-Content -LiteralPath $RunLog -Encoding UTF8 -Value ("[" + (Get-Date).ToString('s') + "] CRASH: " + $_)
+    Add-Content -LiteralPath $RunLog -Encoding UTF8 -Value ("[" + (Get-Date).ToString('s') + "] CRASH: " + ($_ | Out-String))
     HB 'CRASH' ($_ | Out-String)
     Start-Sleep -Seconds 10
   }
