@@ -18,7 +18,7 @@ class Handler(BaseHTTPRequestHandler):
     heartbeat_path = DEFAULT_HEARTBEAT
 
     def _send(self, code, body, ctype):
-        data = body.encode("utf-8")
+        data = body.encode("utf-8", errors="replace")
         self.send_response(code)
         self.send_header("Content-Type", ctype + "; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
@@ -30,14 +30,14 @@ class Handler(BaseHTTPRequestHandler):
         if p in ("/", "/index.html"):
             hb = _read_json(self.heartbeat_path)
             pretty = json.dumps(hb, ensure_ascii=False, indent=2)
-            html = f\"\"\"<!doctype html>
+            html = f"""<!doctype html>
 <html><head>
 <meta charset="utf-8"/>
 <meta http-equiv="refresh" content="2"/>
 <title>FRANKENSTEIN Heartbeat</title>
 <style>
 body {{ font-family: Consolas, monospace; margin: 16px; }}
-pre {{ background: #111; color: #eee; padding: 12px; border-radius: 8px; overflow: auto; }}
+pre  {{ background: #111; color: #eee; padding: 12px; border-radius: 8px; overflow: auto; }}
 .small {{ color: #666; font-size: 12px; }}
 </style>
 </head><body>
@@ -45,7 +45,7 @@ pre {{ background: #111; color: #eee; padding: 12px; border-radius: 8px; overflo
 <div class="small">file: {self.heartbeat_path}</div>
 <pre>{pretty}</pre>
 <div class="small">auto-refresh: 2s</div>
-</body></html>\"\"\"
+</body></html>"""
             return self._send(200, html, "text/html")
         if p == "/api/heartbeat":
             hb = _read_json(self.heartbeat_path)

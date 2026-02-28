@@ -1,11 +1,10 @@
 ﻿from __future__ import annotations
 
-import os
 import json
 import hashlib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -20,7 +19,7 @@ try:
 except Exception:
     talib = None
 
-# Optional fallback: pure-python indicators (MIT) -> pip install ta
+# Optional fallback: pure-python indicators -> pip install ta
 TA_FALLBACK_AVAILABLE = False
 try:
     from ta.volatility import AverageTrueRange
@@ -51,25 +50,30 @@ class IndicatorCache:
         return self.cache_dir / f"{key}.parquet"
 
     def get_or_compute_atr_cci(self, df: pd.DataFrame, atr_len: int, cci_len: int) -> pd.DataFrame:
-        \"\"\"Возвращает df с колонками atr, cci. Кэширует по (len(df), last_ts, params).\"\"\"
+        """Return df with columns atr, cci. Cached by (len(df), last_ts, params, backend)."""
         if "timestamp" in df.columns:
             last_ts = str(df["timestamp"].iloc[-1])
         else:
             last_ts = "na"
 
-        key = _hash_key({"n": int(len(df)), "last_ts": last_ts, "atr_len": int(atr_len), "cci_len": int(cci_len), "backend": TA_BACKEND})
+        key = _hash_key({
+            "n": int(len(df)),
+            "last_ts": last_ts,
+            "atr_len": int(atr_len),
+            "cci_len": int(cci_len),
+            "backend": TA_BACKEND
+        })
         out_path = self._path(key)
 
         if out_path.exists():
             try:
-                cached = pd.read_parquet(out_path)
-                return cached
+                return pd.read_parquet(out_path)
             except Exception:
-                # повреждённый кэш -> пересчёт
-                pass
+                pass  # corrupted cache -> recompute
 
         out = df.copy()
 
+        # Ensure float arrays
         close = out["close"].astype(float).to_numpy()
         high  = out["high"].astype(float).to_numpy()
         low   = out["low"].astype(float).to_numpy()
@@ -81,15 +85,14 @@ class IndicatorCache:
             out["atr"] = AverageTrueRange(high=out["high"], low=out["low"], close=out["close"], window=int(atr_len)).average_true_range()
             out["cci"] = CCIIndicator(high=out["high"], low=out["low"], close=out["close"], window=int(cci_len)).cci()
         else:
-            raise RuntimeError("Нет доступного бэкенда индикаторов. Установите TA-Lib или 'ta'.")
+            raise RuntimeError("No indicator backend available. Install TA-Lib or 'ta'.")
 
         try:
             out.to_parquet(out_path, index=False)
         except Exception:
-            # кэш опционален
-            pass
+            pass  # cache is optional
+
         return out
 
 def default_cache_dir() -> Path:
     return Path(__file__).resolve().parent / "cache" / "indicators"
-

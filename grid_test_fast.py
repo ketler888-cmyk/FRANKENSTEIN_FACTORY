@@ -1,3 +1,13 @@
+﻿import os, json, time, csv
+    main()
+import os, sys
+if os.name == "nt":
+    try:
+        # Make prints safe even when console is cp1252
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 import os, json, time, csv
 from pathlib import Path
 import pandas as pd
