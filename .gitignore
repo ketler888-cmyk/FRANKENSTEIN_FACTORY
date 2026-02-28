@@ -68,3 +68,64 @@ desktop.ini
 # ignore all .txt by default (we keep only requirements*.txt tracked)
 *.txt
 !requirements*.txt
+
+# ================= FRANKEN | MIRROR LOCK (AUTO) =================
+# data / caches / artifacts (NEVER TRACK)
+SCALPING_DATA*/
+cache/
+caches/
+logs/
+results/
+results_ga/
+results_grid/
+parquet/
+csv/
+*.parquet
+*.csv
+*.tsv
+*.duckdb
+*.db
+*.sqlite
+*.sqlite3
+
+# runtime artifacts
+*.log
+*.pid
+ops/*.pid
+ops/heartbeat.json
+ops/STOP_FACTORY
+
+# archives / checkpoints
+*.zip
+*.7z
+*.rar
+
+# diagnostics / inventories
+*_before.txt
+*_inventory*.txt
+*_diag_*.txt
+ohlcv_find*.txt
+ohlcv_sniff*.txt
+ohlcv_sniff*.json
+pairs_detected*.txt
+data_map_*.txt
+status_before.txt
+stderr_before.txt
+_GIT_DIAG_*.txt
+
+# backups / audits / sources
+_BACKUPS_MIRROR/
+BACKUPS_MIRROR/
+_sources/
+AUDIT_*/
+_AUDIT_*/
+
+# OS noise
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# txt policy: ignore all .txt except requirements*.txt
+*.txt
+!requirements*.txt
+# ================================================================
