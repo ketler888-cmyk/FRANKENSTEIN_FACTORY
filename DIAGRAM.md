@@ -1,0 +1,1 @@
+Pipeline: Data -> Loader -> GA -> Triage(3m) -> Year -> Pyramid Storage -> Top Pool
