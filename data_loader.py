@@ -1,5 +1,62 @@
 # === FRANKEN_NORMALIZE_PAIR ===
 def _normalize_pair(pair: str) -> str:
+
+# === FRANKEN_COLMAP ===
+def _fr_colmap(df):
+    try:
+        cols = list(df.columns)
+    except Exception:
+        return df
+
+    norm = {c: str(c).strip() for c in cols}
+    low  = {c: norm[c].lower() for c in cols}
+
+    alias = {
+        "timestamp": ["timestamp","time","datetime","date","open_time","opentime","open time","t","ts"],
+        "open":      ["open","o","op","price_open","openprice"],
+        "high":      ["high","h","hi","price_high","highprice"],
+        "low":       ["low","l","lo","price_low","lowprice"],
+        "close":     ["close","c","cl","price_close","closeprice","last"],
+        "volume":    ["volume","vol","v","qty","quantity","base_volume","basevol","amount"],
+    }
+
+    rename = {}
+    taken = set()
+    for target, al in alias.items():
+        found = None
+        for a in al:
+            for c in cols:
+                if c in taken:
+                    continue
+                if low[c] == a:
+                    found = c
+                    break
+            if found is not None:
+                break
+        if found is not None and found != target:
+            rename[found] = target
+            taken.add(found)
+
+    if rename:
+        df = df.rename(columns=rename)
+
+    if "timestamp" in df.columns:
+        ts = df["timestamp"]
+        try:
+            if hasattr(ts, "dtype") and str(ts.dtype).startswith(("int","uint","float")):
+                mx = float(ts.dropna().iloc[0]) if len(ts.dropna()) else 0.0
+                unit = "ms" if mx > 1e11 else "s"
+                import pandas as pd
+                df["timestamp"] = pd.to_datetime(ts, unit=unit, utc=False, errors="coerce")
+            else:
+                import pandas as pd
+                df["timestamp"] = pd.to_datetime(ts, utc=False, errors="coerce")
+        except Exception:
+            pass
+
+    return df
+# === /FRANKEN_COLMAP ===
+
     # Accept: BTCUSDT, BTC/USDT, BTC-USDT, btcusdt
     if pair is None:
         return pair
@@ -125,6 +182,7 @@ class ScalpingDataLoader:
     def _load_csv(self, file_path: Path) -> pd.DataFrame:
         file_name = file_path.name
         df = pd.read_csv(file_path, engine="c")
+    df = _fr_colmap(df)
         df = self._enforce_required_columns(df, file_name)
         df["timestamp"] = self._parse_timestamp_series(df["timestamp"])
         nat_count = int(df["timestamp"].isna().sum())
@@ -140,6 +198,7 @@ class ScalpingDataLoader:
     def _load_parquet(self, file_path: Path) -> pd.DataFrame:
         file_name = file_path.name
         df = pd.read_parquet(file_path)
+    df = _fr_colmap(df)
         df = self._enforce_required_columns(df, file_name)
         df["timestamp"] = self._parse_timestamp_series(df["timestamp"])
         nat_count = int(df["timestamp"].isna().sum())
