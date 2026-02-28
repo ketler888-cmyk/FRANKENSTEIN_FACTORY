@@ -1,27 +1,39 @@
-﻿# ================= FRANKEN | CODE-ONLY MIRROR =================
+﻿# ================= FRANKEN | CODE-ONLY MIRROR (HARD IGNORE) =================
 
-# Python env / cache
+# python env
 .venv/
 venv/
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 
-# DATA (LOCAL ONLY)
+# data (local only)
 SCALPING_DATA/
 SCALPING_DATA_PARQUET/
 SCALPING_DATA_RAW/
+*.parquet
+*.csv
+*.tsv
+*.feather
+*.arrow
+
+# databases / state (local only)
+*.duckdb
+*.db
+*.sqlite
+*.sqlite3
+
+# results / cache / logs (local only)
 results/
 results_ga/
 cache/
 logs/
-*.parquet
-*.csv
-*.duckdb
-*.feather
-*.arrow
+*.log
+*.out
+*.err
 
-# Backups / audits / dumps (LOCAL ONLY)
+# backups / audits (local only)
 BACKUPS_MIRROR/
 _BACKUPS_MIRROR/
 AUDIT_*/
@@ -32,14 +44,15 @@ _AUDIT_*/
 ЖЕЛЕЗНЫЙ_ЗОНД*/
 *.zip
 *.7z
+*.rar
 
-# Runtime artifacts (LOCAL ONLY)
+# runtime artifacts (local only)
 ops/heartbeat.json
 ops/*.pid
 ops/STOP_FACTORY
 ops/vendor.lock.json
 
-# OS trash
+# os trash
 Thumbs.db
 desktop.ini
 .DS_Store
