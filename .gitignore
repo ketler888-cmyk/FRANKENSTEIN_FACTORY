@@ -1,17 +1,22 @@
 # ================= FRANKEN | CODE-ONLY MIRROR =================
+# venv / python cache
 .venv/
 venv/
 __pycache__/
 *.pyc
 *.pyo
 
+# big data / results / caches (DO NOT COMMIT)
 SCALPING_DATA*/
+SCALPING_DATA_PARQUET*/
+SCALPING_DATA_RAW*/
 results*/
 results_ga*/
 cache/
 logs/
 *_cache/
 
+# datasets / binaries
 *.parquet
 *.csv
 *.tsv
@@ -19,26 +24,39 @@ logs/
 *.db
 *.sqlite
 *.sqlite3
-*.log
 
+# runtime artifacts
+*.log
+*.pid
+ops/*.pid
+ops/heartbeat.json
+ops/STOP_FACTORY
+
+# archives / checkpoints (local only)
 *.zip
 *.7z
 *.rar
 
-ops/heartbeat.json
-ops/*.pid
-ops/STOP_FACTORY
-ops/vendor.lock.json
+# generated diagnostics / inventories / sniff outputs
+*_before.txt
+*_inventory*.txt
+*_diag_*.txt
+ohlcv_find*.txt
+ohlcv_sniff*.txt
+ohlcv_sniff*.json
+pairs_detected*.txt
+data_map_*.txt
+status_before.txt
+stderr_before.txt
 
+# backups / audits / sources that must not pollute repo
 _BACKUPS_MIRROR/
 BACKUPS_MIRROR/
 _sources/
 AUDIT_*/
 _AUDIT_*/
-ЗЕРКАЛЬНЫЕ_ОТЧЕТЫ/
-КОНТЕКСТНЫЙ_ЧАТ/
-ЖЕЛЕЗНЫЙ_ЗОНД/
 
+# windows/mac noise
 Thumbs.db
 desktop.ini
 .DS_Store
