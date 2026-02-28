@@ -62,3 +62,9 @@ _AUDIT_*/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# ---- EXTRA LOCKS (added) ----
+*_autosync_ping.txt
+# ignore all .txt by default (we keep only requirements*.txt tracked)
+*.txt
+!requirements*.txt
